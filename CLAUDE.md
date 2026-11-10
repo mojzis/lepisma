@@ -1,7 +1,7 @@
-# prose-lint
+# lepisma
 
 Soft prose warnings for Markdown written by Claude. This is the spaCy prototype. See
-README.md for the design, rules and roadmap. Run `uv run prose-lint guide` before
+README.md for the design, rules and roadmap. Run `uv run lepisma guide` before
 using the CLI.
 
 ## Layout
@@ -21,19 +21,19 @@ using the CLI.
   them off the lint and hook path.
 - `spacy_model.py` finds the spaCy model. An installed `en_core_web_sm` wins (the
   dev group has it); otherwise it downloads the hash-pinned wheel once into
-  `~/.cache/prose-lint/models/`. The model is not a runtime dependency because PyPI
+  `~/.cache/lepisma/models/`. The model is not a runtime dependency because PyPI
   rejects URL deps. Bump `VERSION`, `WHEEL_SHA256` and the dev-group URL together
   with the spaCy minor.
 - `server.py` is the FastAPI server on 127.0.0.1:8737, with an LRU cache and idle exit.
 - `corpus/` is the baseline test set. `tests/test_corpus.py` checks that bad docs score
   far worse than good ones.
-- `guide.py` and `guide/*.md` are `prose-lint guide`, the agent instructions. Pages
+- `guide.py` and `guide/*.md` are `lepisma guide`, the agent instructions. Pages
   take `{{section.key}}` placeholders filled from `Config` defaults. Update the
   pages when a command, rule or config key changes.
 
 ## Tuning a rule
 
-Run `uv run prose-lint stats corpus/bad corpus/good corpus/toolbox` before and after
+Run `uv run lepisma stats corpus/bad corpus/good corpus/toolbox` before and after
 a change to a rule or threshold. A good change keeps bad docs high, and good and
 toolbox docs low. Add a test to
 `tests/test_rules.py` for each false positive you fix.

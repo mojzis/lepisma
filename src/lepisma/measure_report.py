@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, TextIO
 import polars as pl
 
 if TYPE_CHECKING:
-    from prose_lint.measure import Measurement
+    from lepisma.measure import Measurement
 
 # Metrics that make a section or file harder when they go up. Each counts the same.
 UNIT_SCORE = (
@@ -151,7 +151,7 @@ def _summary(m: Measurement, min_words: int) -> pl.DataFrame:
 
 
 def _habit_table(m: Measurement, min_words: int) -> pl.DataFrame:
-    from prose_lint.measure import habit_column  # noqa: PLC0415
+    from lepisma.measure import habit_column  # noqa: PLC0415
 
     files = m.files.filter(pl.col("words") >= min_words)
     total = max(int(files["words"].sum()), 1)

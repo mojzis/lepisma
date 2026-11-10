@@ -1,7 +1,7 @@
 import json
 import subprocess
 
-from prose_lint.cli import HOOK_MARKER, main
+from lepisma.cli import HOOK_MARKER, main
 
 
 def test_check_text(tmp_path, monkeypatch, capsys):
@@ -22,7 +22,7 @@ def test_check_json_strict(tmp_path, monkeypatch, capsys):
 
 def test_check_respects_ignore(tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
-    (tmp_path / "prose-lint.toml").write_text('ignore = ["skip/*"]\n')
+    (tmp_path / "lepisma.toml").write_text('ignore = ["skip/*"]\n')
     (tmp_path / "skip").mkdir()
     (tmp_path / "skip" / "a.md").write_text("We utilize it.\n")
     assert main(["check", "--strict", "."]) == 0

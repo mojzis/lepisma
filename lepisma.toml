@@ -1,5 +1,5 @@
-# prose-lint settings for this repo. Every key is optional; defaults shown in
-# README.md. Copy this file to the root of any repo that uses prose-lint.
+# lepisma settings for this repo. Every key is optional; defaults shown in
+# README.md. Copy this file to the root of any repo that uses lepisma.
 
 # Paths (globs, relative to the repo root) the hook never lints.
 ignore = ["corpus/**", "CHANGELOG.md"]

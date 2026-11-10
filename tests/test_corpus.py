@@ -3,9 +3,9 @@
 from collections import Counter
 from pathlib import Path
 
-from prose_lint.config import Config
-from prose_lint.engine import lint_text
-from prose_lint.report import per_1000
+from lepisma.config import Config
+from lepisma.engine import lint_text
+from lepisma.report import per_1000
 
 CORPUS = Path(__file__).parent.parent / "corpus"
 

@@ -2,7 +2,7 @@
 
 Usable as a library, for example from a docs server::
 
-    from prose_lint.measure import Measurer
+    from lepisma.measure import Measurer
 
     measurer = Measurer()                      # loads spaCy once
     result = measurer.measure({"guide.md": text})
@@ -25,10 +25,10 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 from spacy.tokens import Doc
 
-from prose_lint import markdown
-from prose_lint.config import Config
-from prose_lint.engine import load_nlp, parse_blocks
-from prose_lint.rules import habit_hits, is_nominal, is_word, noun_count, noun_runs
+from lepisma import markdown
+from lepisma.config import Config
+from lepisma.engine import load_nlp, parse_blocks
+from lepisma.rules import habit_hits, is_nominal, is_word, noun_count, noun_runs
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping
@@ -36,7 +36,7 @@ if TYPE_CHECKING:
     from spacy.language import Language
     from spacy.tokens import Span
 
-    from prose_lint.markdown import Block
+    from lepisma.markdown import Block
 
 MIN_LIST_WORDS = 4  # list items shorter than this are fragments, not sentences
 LONG = 25

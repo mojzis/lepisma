@@ -6,13 +6,13 @@ import re
 from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING
 
-from prose_lint.models import Finding
+from lepisma.models import Finding
 
 if TYPE_CHECKING:
     from spacy.tokens import Doc, Span, Token
 
-    from prose_lint.config import Config
-    from prose_lint.markdown import Block
+    from lepisma.config import Config
+    from lepisma.markdown import Block
 
 NOUNS = {"NOUN", "PROPN"}
 # Verb lexicons by id(vocab), registered by engine.parse_blocks. Kept off the

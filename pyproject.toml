@@ -1,5 +1,5 @@
 [project]
-name = "prose-lint"
+name = "lepisma"
 version = "0.1.0"
 description = "Soft, fast prose warnings for Claude-written Markdown docs"
 readme = "README.md"
@@ -13,14 +13,14 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/mojzis/prose-lint"
-Issues = "https://github.com/mojzis/prose-lint/issues"
+Homepage = "https://github.com/mojzis/lepisma"
+Issues = "https://github.com/mojzis/lepisma/issues"
 
 [project.scripts]
-prose-lint = "prose_lint.cli:main"
+lepisma = "lepisma.cli:main"
 
 [project.optional-dependencies]
-# `prose-lint measure` and prose_lint.measure; the hook and lint path never need them.
+# `lepisma measure` and lepisma.measure; the hook and lint path never need them.
 measure = [
     "polars>=2.1.0",
     "textdescriptives>=2.8.2",
@@ -32,7 +32,7 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
-    "prose-lint[measure]",
+    "lepisma[measure]",
     # Not a runtime dependency: PyPI rejects URL deps, so installs fetch the model on
     # first use (spacy_model.py). Dev and tests get it here, offline after uv sync.
     "en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
@@ -88,7 +88,7 @@ ignore_decorators = ["@app.get", "@app.post"]
 ignore_names = ["should_exit"]
 
 [tool.deptry]
-known_first_party = ["prose_lint"]
+known_first_party = ["lepisma"]
 # The spaCy model is loaded by name via spacy.load(), never imported.
 per_rule_ignores = { DEP002 = ["en-core-web-sm"] }
 

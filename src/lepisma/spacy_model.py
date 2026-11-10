@@ -3,7 +3,7 @@
 spaCy models are not on PyPI, so the package cannot depend on one. An installed
 ``en_core_web_sm`` package wins (dev installs, offline ``uv pip install``).
 Otherwise the pinned wheel is fetched once, checked against its SHA-256, and
-unpacked under ``~/.cache/prose-lint/models``; spaCy then loads it by path.
+unpacked under ``~/.cache/lepisma/models``; spaCy then loads it by path.
 
 This needs no pip and never writes into the Python environment, so it works the
 same under ``uvx``, ``uv tool install`` and a plain venv, and the cache outlives
@@ -24,7 +24,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-from prose_lint.client import cache_dir
+from lepisma.client import cache_dir
 
 MODEL = "en_core_web_sm"
 VERSION = "3.8.0"  # keep on the spaCy minor in pyproject (spacy>=3.8,<3.9)
@@ -34,7 +34,7 @@ WHEEL_URL = (
 )
 WHEEL_SHA256 = "1932429db727d4bff3deed6b34cfc05df17794f4a52eeb26cf8928f7c1a0fb85"
 # A local path or URL to fetch the same wheel from, e.g. for offline machines.
-WHEEL_ENV = "PROSE_LINT_MODEL_WHEEL"
+WHEEL_ENV = "LEPISMA_MODEL_WHEEL"
 DOWNLOAD_TIMEOUT_S = 60
 
 
@@ -62,7 +62,7 @@ def download(root: Path) -> None:
     """Fetch the wheel, check its hash and unpack it to ``root`` atomically."""
     source = os.environ.get(WHEEL_ENV) or WHEEL_URL
     print(  # noqa: T201
-        f"prose-lint: downloading spaCy model {MODEL} (~13 MB, once)…",
+        f"lepisma: downloading spaCy model {MODEL} (~13 MB, once)…",
         file=sys.stderr,
         flush=True,
     )

@@ -2,7 +2,7 @@ import threading
 
 from fastapi.testclient import TestClient
 
-from prose_lint.server import BUILD, create_app
+from lepisma.server import BUILD, create_app
 
 
 def test_health_reports_version():

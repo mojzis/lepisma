@@ -12,7 +12,7 @@ import unicodedata
 from dataclasses import dataclass, field
 from typing import Literal
 
-from prose_lint.config import RULES, rule_id
+from lepisma.config import RULES, rule_id
 
 BlockKind = Literal["paragraph", "list", "heading", "quote"]
 
@@ -29,7 +29,7 @@ _TABLE_SEP = re.compile(r"^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?\s*$")
 _LINK_DEF = re.compile(r"^\s{0,3}\[[^\]]+\]:\s*\S")
 _HTML_BLOCK = re.compile(r"^\s{0,3}</?[A-Za-z][\w-]*[\s/>]|^\s{0,3}<!--")
 _DIRECTIVE = re.compile(
-    r"<!--\s*prose-lint:\s*(disable-next|disable|enable)\b([^>]*?)-->", re.IGNORECASE
+    r"<!--\s*lepisma:\s*(disable-next|disable|enable)\b([^>]*?)-->", re.IGNORECASE
 )
 _IDENTIFIER_ITEM = re.compile(r"^[\w.\-/:`=\[\]()]+,?$")
 # Line-per-item text that Markdown joins into one paragraph: "**Status:** Draft"
@@ -156,7 +156,7 @@ def _starts_item(prev: str, line: str) -> bool:
 
 
 class _Disabler:
-    """Tracks ``<!-- prose-lint: ... -->`` directives while scanning."""
+    """Tracks ``<!-- lepisma: ... -->`` directives while scanning."""
 
     def __init__(self) -> None:
         self.active: set[str] = set()

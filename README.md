@@ -1,13 +1,16 @@
-# prose-lint
+# lepisma
 
 Fast, soft feedback on Markdown docs that are hard to read. It targets the habits
 of text written by Claude. Warnings go back to Claude so it can rewrite the text.
 **Warnings never block a commit.**
 
+The name: *Lepisma saccharina* is the silverfish, which eats paper and chews
+through books.
+
 Agents: start with the built-in guide. It picks setup or triage from the repo state.
 
 ```
-uvx prose-lint@latest guide
+uvx lepisma@latest guide
 ```
 
 Sample output:
@@ -36,8 +39,8 @@ docs/setup.md:18:5 R4 "performs validation" hides the verb; try "validate".
 Add it to the repo's dev dependencies, so the hook finds it in `.venv`:
 
 ```
-uv add --dev prose-lint
-cp /path/to/prose-lint/prose-lint.toml .   # optional; every key has a default
+uv add --dev lepisma
+cp /path/to/lepisma/lepisma.toml .   # optional; every key has a default
 ```
 
 ### The spaCy model
@@ -45,7 +48,7 @@ cp /path/to/prose-lint/prose-lint.toml .   # optional; every key has a default
 spaCy models are not on PyPI, so `en_core_web_sm` 3.8.0 is not a dependency. On
 first use, `check`, `stats`, `measure` and the server download the wheel once
 (~13 MB) and check its SHA-256. They unpack it to
-`~/.cache/prose-lint/models/`, outside any virtualenv, so every `uvx` run and
+`~/.cache/lepisma/models/`, outside any virtualenv, so every `uvx` run and
 venv shares one copy. This needs no pip. The hook client never downloads; it
 skips commits while the server starts.
 
@@ -55,7 +58,7 @@ Offline, install the model into the environment instead:
 uv pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
 ```
 
-Or set `PROSE_LINT_MODEL_WHEEL` to a local copy (or mirror URL) of that wheel.
+Or set `LEPISMA_MODEL_WHEEL` to a local copy (or mirror URL) of that wheel.
 
 ### With madoqua (the main path)
 
@@ -64,19 +67,19 @@ Add a check step that wakes on staged Markdown. madoqua appends the matched file
 ```toml
 [tool.madoqua]
 extend_check = [
-  { name = "prose-lint", cmd = "prose-lint hook", on = ["*.md", "*.markdown"], timeout_s = 5 },
+  { name = "lepisma", cmd = "lepisma hook", on = ["*.md", "*.markdown"], timeout_s = 5 },
 ]
 ```
 
 **Gap:** madoqua prints a step's output only when the step fails, and
-`prose-lint hook` always exits 0. So the warnings stay hidden until madoqua gets
+`lepisma hook` always exits 0. So the warnings stay hidden until madoqua gets
 a warn-only step mode that prints output without blocking
 ([madoqua#19](https://github.com/mojzis/madoqua/issues/19)).
 
 ### Without madoqua
 
 ```
-prose-lint install-hook   # adds one warn-only line to the pre-commit hook
+lepisma install-hook   # adds one warn-only line to the pre-commit hook
 ```
 
 `install-hook` follows `core.hooksPath`. It puts its line right after the shebang, so
@@ -86,13 +89,13 @@ it runs even when the rest of the hook ends in `exec`.
 
 | Command | What it does |
 | --- | --- |
-| `prose-lint guide [setup\|triage\|tune]` | Print instructions for an agent. With no topic it picks one from the current directory. |
-| `prose-lint check PATH...` | Lint files or folders in-process, no server. `--format json`, `--strict` exits 1 on warnings. |
-| `prose-lint stats PATH...` | Warnings per 1,000 words per file and rule, one table per path. |
-| `prose-lint measure PATH...` | Readability stats for whole docs. Writes Parquet tables and `report.md` to `--out` (default `stats/`). Needs the `measure` extra. |
-| `prose-lint hook [FILE...]` | What the git hook runs. Lints the given files, or asks git for the staged docs. `--wait 10` waits for the server instead of skipping. |
-| `prose-lint serve` | Run the server in the foreground. `--idle-timeout 0` keeps it up. |
-| `prose-lint stop` | Stop the server, for example after an upgrade. |
+| `lepisma guide [setup\|triage\|tune]` | Print instructions for an agent. With no topic it picks one from the current directory. |
+| `lepisma check PATH...` | Lint files or folders in-process, no server. `--format json`, `--strict` exits 1 on warnings. |
+| `lepisma stats PATH...` | Warnings per 1,000 words per file and rule, one table per path. |
+| `lepisma measure PATH...` | Readability stats for whole docs. Writes Parquet tables and `report.md` to `--out` (default `stats/`). Needs the `measure` extra. |
+| `lepisma hook [FILE...]` | What the git hook runs. Lints the given files, or asks git for the staged docs. `--wait 10` waits for the server instead of skipping. |
+| `lepisma serve` | Run the server in the foreground. `--idle-timeout 0` keeps it up. |
+| `lepisma stop` | Stop the server, for example after an upgrade. |
 
 The hook replaces a server whose code differs from its own. It compares a hash of the
 package source, so upgrades and local edits take effect. The commit that finds the
@@ -100,12 +103,12 @@ mismatch is skipped.
 
 Environment variables:
 
-- `PROSE_LINT_VERBOSE=1` prints why the hook skipped.
-- `PROSE_LINT_DISABLE=1` turns the hook off.
-- `PROSE_LINT_PORT` and `PROSE_LINT_TIMEOUT_MS` override the config.
-- `PROSE_LINT_MODEL_WHEEL` is a path or URL to fetch the spaCy model wheel from.
+- `LEPISMA_VERBOSE=1` prints why the hook skipped.
+- `LEPISMA_DISABLE=1` turns the hook off.
+- `LEPISMA_PORT` and `LEPISMA_TIMEOUT_MS` override the config.
+- `LEPISMA_MODEL_WHEEL` is a path or URL to fetch the spaCy model wheel from.
 
-The server log is in `~/.cache/prose-lint/server.log`.
+The server log is in `~/.cache/lepisma/server.log`.
 
 ## Rules
 
@@ -137,7 +140,7 @@ Details:
     in "The progress bar resets after a logout".
 
   The verb test uses the WordNet verb list in spaCy's lemmatizer.
-<!-- prose-lint: disable-next R3 -->
+<!-- lepisma: disable-next R3 -->
 - **R3** matches inflections, so "leveraging" counts as "leverage". The default list:
   comprehensive, robust, seamless, seamlessly, leverage, utilize, delve, crucial,
   streamline, ensure, facilitate, "in order to", "it is important to note",
@@ -157,12 +160,12 @@ Details:
 
 ## Measuring whole docs
 
-`prose-lint measure` reports how hard a set of docs is to read, and where the
+`lepisma measure` reports how hard a set of docs is to read, and where the
 hardest parts are. It never edits a doc.
 
 ```
-uv add --dev "prose-lint[measure]"
-uv run prose-lint measure docs/ --out stats/
+uv add --dev "lepisma[measure]"
+uv run lepisma measure docs/ --out stats/
 ```
 
 It writes four files:
@@ -189,8 +192,8 @@ part-of-speech shares and repetition.
 A docs server can load the model once and measure pages on request:
 
 ```python
-from prose_lint.measure import Measurer
-from prose_lint.measure_report import render
+from lepisma.measure import Measurer
+from lepisma.measure_report import render
 
 measurer = Measurer()  # loads spaCy once; reuse it
 result = measurer.measure({"guide.md": text})  # {path: markdown}
@@ -203,16 +206,16 @@ render(result, min_words=100)  # the report as Markdown
 
 ## Configuration
 
-Put one `prose-lint.toml` at the repo root. The [sample in this repo](prose-lint.toml)
+Put one `lepisma.toml` at the repo root. The [sample in this repo](lepisma.toml)
 lists every key with its default.
 
 To turn rules off inside a document:
 
 ```markdown
-<!-- prose-lint: disable R2 -->        off until enable or end of file
-<!-- prose-lint: enable R2 -->
-<!-- prose-lint: disable-next R1 R3 --> off for the next block only
-<!-- prose-lint: disable -->           all rules
+<!-- lepisma: disable R2 -->        off until enable or end of file
+<!-- lepisma: enable R2 -->
+<!-- lepisma: disable-next R1 R3 --> off for the next block only
+<!-- lepisma: disable -->           all rules
 ```
 
 Rules can be named by ID (`R2`) or by name (`noun-stack`).
@@ -221,19 +224,19 @@ Rules can be named by ID (`R2`) or by name (`noun-stack`).
 
 Add this to the `CLAUDE.md` of a repo that uses the hook:
 
-> When a commit prints `prose-lint` warnings, rewrite the flagged prose and commit
+> When a commit prints `lepisma` warnings, rewrite the flagged prose and commit
 > again. Split long sentences, turn noun stacks and nominalizations into verbs, and
-> replace habit words with plain ones. Use `<!-- prose-lint: disable-next Rn -->` only
+> replace habit words with plain ones. Use `<!-- lepisma: disable-next Rn -->` only
 > where a warning is wrong, and say why.
 
-For a whole document, run `prose-lint check --format json doc.md`, give Claude the
+For a whole document, run `lepisma check --format json doc.md`, give Claude the
 result, and ask for a rewrite. The `prose-rewrite` skill in `.claude/skills/` does this
 loop. Then check the result with people, not just with the linter.
 
 ## Measuring success
 
 - **Density.** Warnings per 1,000 words before and after a rewrite:
-  `prose-lint stats before/ after/`.
+  `lepisma stats before/ after/`.
 - **Human rating.** A quick 1 to 5 readability score on the test set.
 - **Noise.** How often people disable each rule. Remove the noisy ones.
 

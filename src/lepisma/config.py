@@ -1,4 +1,4 @@
-"""Load ``prose-lint.toml`` and merge it over the defaults.
+"""Load ``lepisma.toml`` and merge it over the defaults.
 
 This module stays light (stdlib only) because the commit hook client imports it.
 """
@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-CONFIG_NAME = "prose-lint.toml"
+CONFIG_NAME = "lepisma.toml"
 
 DEFAULT_HABIT_WORDS: dict[str, str] = {
     # word or phrase -> plainer alternative ("" means just cut it)
@@ -80,7 +80,7 @@ def _str_list(raw: object, key: str) -> list[str]:
 
 
 class ConfigError(ValueError):
-    """Raised for an invalid ``prose-lint.toml``."""
+    """Raised for an invalid ``lepisma.toml``."""
 
 
 @dataclass(slots=True)
@@ -244,7 +244,7 @@ def from_dict(data: dict[str, Any]) -> Config:
 
 
 def find_config(start: Path) -> Path | None:
-    """Walk up from ``start`` and return the first ``prose-lint.toml``."""
+    """Walk up from ``start`` and return the first ``lepisma.toml``."""
     for directory in (start, *start.parents):
         candidate = directory / CONFIG_NAME
         if candidate.is_file():

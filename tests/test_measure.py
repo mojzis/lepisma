@@ -3,9 +3,9 @@ import io
 import polars as pl
 import pytest
 
-from prose_lint.cli import main
-from prose_lint.measure import Measurer, habit_column
-from prose_lint.measure_report import print_summary, render, scored_sentences
+from lepisma.cli import main
+from lepisma.measure import Measurer, habit_column
+from lepisma.measure_report import print_summary, render, scored_sentences
 
 DOC = """---
 title: x

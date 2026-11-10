@@ -30,7 +30,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     environment:
       name: pypi
-      url: https://pypi.org/p/prose-lint
+      url: https://pypi.org/p/lepisma
     permissions:
       id-token: write
     steps:

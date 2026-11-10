@@ -1,23 +1,23 @@
-## Setup: wire prose-lint into this repository
+## Setup: wire lepisma into this repository
 
-prose-lint gives soft warnings on hard-to-read Markdown. It runs as a warn-only
+lepisma gives soft warnings on hard-to-read Markdown. It runs as a warn-only
 commit hook and never blocks a commit. Nothing here says it is set up yet: there
-is no `prose-lint.toml` and no `prose-lint hook` step in `pyproject.toml`.
+is no `lepisma.toml` and no `lepisma hook` step in `pyproject.toml`.
 
 ### Steps
 
 1. Add it as a dev dependency, so the hook finds it in `.venv`:
 
    ```
-   uv add --dev prose-lint
+   uv add --dev lepisma
    ```
 
    The first run downloads the spaCy model (~13 MB) into
-   `~/.cache/prose-lint/models/`. Offline, run
+   `~/.cache/lepisma/models/`. Offline, run
    `uv pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl`
-   or set `PROSE_LINT_MODEL_WHEEL` to a local copy of that wheel.
+   or set `LEPISMA_MODEL_WHEEL` to a local copy of that wheel.
 
-2. Create `prose-lint.toml` at the repo root. An empty file is valid; every key
+2. Create `lepisma.toml` at the repo root. An empty file is valid; every key
    has a default. Add an `ignore` list for generated or vendored docs:
 
    ```toml
@@ -30,7 +30,7 @@ is no `prose-lint.toml` and no `prose-lint hook` step in `pyproject.toml`.
    ```toml
    [tool.madoqua]
    extend_check = [
-     { name = "prose-lint", cmd = "prose-lint hook", on = ["*.md", "*.markdown"], timeout_s = 5 },
+     { name = "lepisma", cmd = "lepisma hook", on = ["*.md", "*.markdown"], timeout_s = 5 },
    ]
    ```
 
@@ -38,31 +38,31 @@ is no `prose-lint.toml` and no `prose-lint hook` step in `pyproject.toml`.
    so warnings stay hidden for now (madoqua#19). Without madoqua, run:
 
    ```
-   uv run prose-lint install-hook
+   uv run lepisma install-hook
    ```
 
 4. Get a baseline before the first commit:
 
    ```
-   uv run prose-lint check .
+   uv run lepisma check .
    ```
 
    The first hook run starts the spaCy server and skips that commit. Later
    commits get warnings.
 
-5. Record it. Add one line to `CLAUDE.md`: "When a commit prints prose-lint
-   warnings, run `uv run prose-lint guide triage` and rewrite the flagged prose."
+5. Record it. Add one line to `CLAUDE.md`: "When a commit prints lepisma
+   warnings, run `uv run lepisma guide triage` and rewrite the flagged prose."
 
 ### Done looks like
 
-`uv run prose-lint guide` names `triage` on its first line, and
-`uv run prose-lint check .` prints `file:line:col` lines or nothing.
+`uv run lepisma guide` names `triage` on its first line, and
+`uv run lepisma check .` prints `file:line:col` lines or nothing.
 
 ### Do not
 
 - Do not make the hook blocking (`check --strict` in a hook). The design is
   warn-only.
-- Do not copy thresholds into `prose-lint.toml` unless you mean to change them;
-  see `uv run prose-lint guide tune`.
+- Do not copy thresholds into `lepisma.toml` unless you mean to change them;
+  see `uv run lepisma guide tune`.
 
-next: `uv run prose-lint check .`
+next: `uv run lepisma check .`

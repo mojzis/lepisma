@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from prose_lint import cli, spacy_model
-from prose_lint.spacy_model import MODEL, VERSION, ModelError, locate
+from lepisma import cli, spacy_model
+from lepisma.spacy_model import MODEL, VERSION, ModelError, locate
 
 
 def _fake_wheel() -> bytes:
@@ -43,7 +43,7 @@ def test_missing_model_is_unpacked_into_the_user_cache(no_model, tmp_path):
     path = locate()
     assert isinstance(path, Path)
     assert (path / "config.cfg").is_file()
-    assert path.is_relative_to(tmp_path / "prose-lint" / "models")
+    assert path.is_relative_to(tmp_path / "lepisma" / "models")
 
 
 def test_missing_model_downloads_once_with_notice(no_model, capsys):
@@ -63,7 +63,7 @@ def test_hash_mismatch_leaves_no_model(no_model, monkeypatch, tmp_path):
     monkeypatch.setattr(spacy_model, "WHEEL_SHA256", "0" * 64)
     with pytest.raises(ModelError, match="SHA-256"):
         locate()
-    assert not (tmp_path / "prose-lint" / "models").exists()
+    assert not (tmp_path / "lepisma" / "models").exists()
 
 
 def test_fetch_failure_explains_offline_install(no_model, monkeypatch):
@@ -81,4 +81,4 @@ def test_cli_reports_model_error_and_exits_2(monkeypatch, capsys):
 
     monkeypatch.setattr(cli, "cmd_check", fail)
     assert cli.main(["check", "x.md"]) == 2
-    assert capsys.readouterr().err == "prose-lint: could not fetch\n"
+    assert capsys.readouterr().err == "lepisma: could not fetch\n"

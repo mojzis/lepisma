@@ -1,4 +1,4 @@
-from prose_lint.markdown import PLACEHOLDER, parse
+from lepisma.markdown import PLACEHOLDER, parse
 
 
 def texts(source: str) -> list[str]:
@@ -62,11 +62,11 @@ def test_headings_including_setext():
 
 
 def test_disable_enable_and_disable_next():
-    source = """<!-- prose-lint: disable R2 noun-stack -->
+    source = """<!-- lepisma: disable R2 noun-stack -->
 A.
 
-<!-- prose-lint: enable R2 -->
-<!-- prose-lint: disable-next -->
+<!-- lepisma: enable R2 -->
+<!-- lepisma: disable-next -->
 B.
 
 C.

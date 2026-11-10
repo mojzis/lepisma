@@ -3,7 +3,7 @@
 Sends staged Markdown files to the local server and prints the warnings. When the
 server is down it starts one in the background and skips this commit; when the
 server is slow it skips. Every failure path is silent unless
-``PROSE_LINT_VERBOSE=1``.
+``LEPISMA_VERBOSE=1``.
 """
 
 from __future__ import annotations
@@ -19,9 +19,9 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from prose_lint import build_id
-from prose_lint.config import ConfigError, from_dict, load_raw
-from prose_lint.models import FileResult
+from lepisma import build_id
+from lepisma.config import ConfigError, from_dict, load_raw
+from lepisma.models import FileResult
 
 SPAWN_COOLDOWN_S = 30
 DEFAULT_IDLE_TIMEOUT_S = 4 * 3600
@@ -32,19 +32,19 @@ class Skip(Exception):
 
 
 def _verbose() -> bool:
-    return os.environ.get("PROSE_LINT_VERBOSE") == "1"
+    return os.environ.get("LEPISMA_VERBOSE") == "1"
 
 
 def note(msg: str) -> None:
     """Print a diagnostic to stderr, only in verbose mode."""
     if _verbose():
-        print(f"prose-lint: {msg}", file=sys.stderr)  # noqa: T201
+        print(f"lepisma: {msg}", file=sys.stderr)  # noqa: T201
 
 
 def cache_dir() -> Path:
     """Directory for the server log and spawn stamp."""
     base = os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache")
-    path = Path(base) / "prose-lint"
+    path = Path(base) / "lepisma"
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -90,7 +90,7 @@ def post(port: int, route: str, payload: dict[str, Any], timeout_s: float) -> An
 
 
 def healthy(port: int, timeout_s: float = 0.2) -> bool:
-    """True when a prose-lint server answers on ``port``."""
+    """True when a lepisma server answers on ``port``."""
     try:
         with urllib.request.urlopen(_url(port, "/health"), timeout=timeout_s) as resp:  # noqa: S310
             return json.loads(resp.read()).get("status") == "ok"
@@ -107,7 +107,7 @@ def spawn_server(port: int, *, force: bool = False) -> bool:
     stamp.touch()
     log = (cache_dir() / "server.log").open("ab")
     subprocess.Popen(  # noqa: S603 - our own interpreter and module
-        [sys.executable, "-m", "prose_lint", "serve", "--port", str(port)],
+        [sys.executable, "-m", "lepisma", "serve", "--port", str(port)],
         stdin=subprocess.DEVNULL,
         stdout=log,
         stderr=log,
@@ -182,7 +182,7 @@ def run_hook(
     ``files`` are paths relative to the repo root, as madoqua passes them. Without
     them the hook asks git for the staged docs itself.
     """
-    if os.environ.get("PROSE_LINT_DISABLE") == "1":
+    if os.environ.get("LEPISMA_DISABLE") == "1":
         return 0
     try:
         root = Path(_git("rev-parse", "--show-toplevel").strip())
@@ -192,8 +192,8 @@ def run_hook(
         paths = [p for p in candidates if not cfg.is_ignored(p)]
         if not paths:
             return 0
-        port = int(os.environ.get("PROSE_LINT_PORT", cfg.server.port))
-        timeout_ms = int(os.environ.get("PROSE_LINT_TIMEOUT_MS", cfg.server.timeout_ms))
+        port = int(os.environ.get("LEPISMA_PORT", cfg.server.port))
+        timeout_ms = int(os.environ.get("LEPISMA_TIMEOUT_MS", cfg.server.timeout_ms))
         if wait_s > 0:
             wait_for_server(port, wait_s)
         docs = [(p, read_staged(root, p)) for p in paths]
@@ -204,7 +204,7 @@ def run_hook(
     except (ConfigError, subprocess.CalledProcessError, OSError, ValueError) as exc:
         note(f"skipped: {exc}")
         return 0
-    from prose_lint.report import print_results  # noqa: PLC0415 - keep startup lean
+    from lepisma.report import print_results  # noqa: PLC0415 - keep startup lean
 
     print_results(results, fmt, footer=True)
     return 0

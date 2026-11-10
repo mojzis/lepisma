@@ -1217,7 +1217,7 @@ wheels = [
 ]
 
 [[package]]
-name = "prose-lint"
+name = "lepisma"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
@@ -1244,7 +1244,7 @@ dev = [
     { name = "interrogate" },
     { name = "madoqua" },
     { name = "poethepoet" },
-    { name = "prose-lint", extra = ["measure"] },
+    { name = "lepisma", extra = ["measure"] },
     { name = "pycoati" },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -1276,7 +1276,7 @@ dev = [
     { name = "interrogate" },
     { name = "madoqua" },
     { name = "poethepoet" },
-    { name = "prose-lint", extras = ["measure"] },
+    { name = "lepisma", extras = ["measure"] },
     { name = "pycoati" },
     { name = "pytest" },
     { name = "pytest-cov" },

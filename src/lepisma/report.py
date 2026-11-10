@@ -7,8 +7,8 @@ import sys
 from collections import Counter
 from typing import TextIO
 
-from prose_lint.config import RULES
-from prose_lint.models import FileResult
+from lepisma.config import RULES
+from lepisma.models import FileResult
 
 NAME_W = 44  # width of the file column in stats output
 
@@ -50,9 +50,9 @@ def print_results(
     if footer and warnings:
         files = len({w.path for w in warnings})
         out.write(
-            f"prose-lint: {len(warnings)} warning(s) in {files} file(s); "
+            f"lepisma: {len(warnings)} warning(s) in {files} file(s); "
             "warn-only, the commit goes ahead. Rewrite the flagged prose, or add "
-            "<!-- prose-lint: disable R<n> --> where a rule is wrong.\n"
+            "<!-- lepisma: disable R<n> --> where a rule is wrong.\n"
         )
 
 

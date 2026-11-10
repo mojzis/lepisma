@@ -1,6 +1,6 @@
-"""``prose-lint guide``: one Markdown page of instructions for an agent.
+"""``lepisma guide``: one Markdown page of instructions for an agent.
 
-Pages live in ``prose_lint/guide/*.md``. ``{{section.key}}`` placeholders are filled
+Pages live in ``lepisma/guide/*.md``. ``{{section.key}}`` placeholders are filled
 from the ``Config`` defaults, so thresholds in the pages follow the code. Stdlib only.
 """
 
@@ -10,11 +10,11 @@ import re
 from importlib.resources import files
 from pathlib import Path
 
-from prose_lint.config import CONFIG_NAME, Config, find_config
+from lepisma.config import CONFIG_NAME, Config, find_config
 
 TOPICS: dict[str, str] = {
     "setup": "not wired in yet: install, config, hook, first run",
-    "triage": "prose-lint printed warnings: what they mean, how to fix them",
+    "triage": "lepisma printed warnings: what they mean, how to fix them",
     "tune": "reference: config keys, defaults, exit codes, changing a threshold",
 }
 
@@ -28,7 +28,7 @@ def _default(match: re.Match[str]) -> str:
 
 def render(topic: str) -> str:
     """The page for ``topic`` with defaults filled in."""
-    text = files("prose_lint").joinpath("guide", f"{topic}.md").read_text("utf-8")
+    text = files("lepisma").joinpath("guide", f"{topic}.md").read_text("utf-8")
     return _PLACEHOLDER.sub(_default, text)
 
 
@@ -38,6 +38,6 @@ def detect(cwd: Path) -> tuple[str, str]:
     if config is not None:
         return "triage", f"configured via {config}"
     pyproject = cwd / "pyproject.toml"
-    if pyproject.is_file() and "prose-lint hook" in pyproject.read_text("utf-8"):
+    if pyproject.is_file() and "lepisma hook" in pyproject.read_text("utf-8"):
         return "triage", "configured via pyproject.toml madoqua step"
     return "setup", f"no {CONFIG_NAME} here or above, no hook step in pyproject.toml"

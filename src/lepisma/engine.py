@@ -7,10 +7,10 @@ from collections.abc import Iterable, Iterator
 from functools import cache
 from typing import TYPE_CHECKING
 
-from prose_lint import markdown
-from prose_lint.config import RULES, Config
-from prose_lint.models import FileResult, Warning
-from prose_lint.rules import RULE_FUNCS, register_verbs
+from lepisma import markdown
+from lepisma.config import RULES, Config
+from lepisma.models import FileResult, Warning
+from lepisma.rules import RULE_FUNCS, register_verbs
 
 if TYPE_CHECKING:
     from spacy.language import Language
@@ -22,7 +22,7 @@ def load_nlp() -> Language:
     """Load the spaCy model once per process, downloading it on first use."""
     import spacy  # noqa: PLC0415 - heavy import, kept off the hook's path
 
-    from prose_lint.spacy_model import locate  # noqa: PLC0415
+    from lepisma.spacy_model import locate  # noqa: PLC0415
 
     return spacy.load(locate(), disable=["ner"])
 

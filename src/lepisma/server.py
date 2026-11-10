@@ -13,10 +13,10 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from prose_lint import build_id
-from prose_lint.config import ConfigError, from_dict
-from prose_lint.engine import lint_text, load_nlp
-from prose_lint.models import FileResult
+from lepisma import build_id
+from lepisma.config import ConfigError, from_dict
+from lepisma.engine import lint_text, load_nlp
+from lepisma.models import FileResult
 
 # Computed once at startup: the code this process actually runs.
 BUILD = build_id()
@@ -32,7 +32,7 @@ class SourceFile(BaseModel):
 
 
 class LintRequest(BaseModel):
-    """Files plus the repo's raw ``prose-lint.toml`` contents."""
+    """Files plus the repo's raw ``lepisma.toml`` contents."""
 
     files: list[SourceFile]
     config: dict[str, Any] = {}
@@ -63,7 +63,7 @@ class _Cache:
 
 def create_app(on_shutdown: threading.Event | None = None) -> FastAPI:
     """Build the app. ``on_shutdown`` is set when a client asks the server to stop."""
-    app = FastAPI(title="prose-lint")
+    app = FastAPI(title="lepisma")
     cache = _Cache(CACHE_SIZE)
     app.state.last_request = time.monotonic()
 

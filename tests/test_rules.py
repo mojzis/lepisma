@@ -1,7 +1,7 @@
 import pytest
 
-from prose_lint.config import Config, from_dict
-from prose_lint.rules import verb_form
+from lepisma.config import Config, from_dict
+from lepisma.rules import verb_form
 
 
 def rules(warnings):
@@ -104,7 +104,7 @@ def test_verb_form(noun, verb):
 
 
 def test_inline_disable_suppresses_rule(lint):
-    text = "<!-- prose-lint: disable R3 -->\nWe leverage it.\n"
+    text = "<!-- lepisma: disable R3 -->\nWe leverage it.\n"
     assert lint(text) == []
 
 

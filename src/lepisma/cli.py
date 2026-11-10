@@ -9,13 +9,13 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from prose_lint.guide import TOPICS
+from lepisma.guide import TOPICS
 
 if TYPE_CHECKING:
-    from prose_lint.config import Config
-    from prose_lint.models import FileResult
+    from lepisma.config import Config
+    from lepisma.models import FileResult
 
-HOOK_MARKER = "prose-lint hook"
+HOOK_MARKER = "lepisma hook"
 
 
 def _walk(directory: Path, extensions: list[str]) -> list[Path]:
@@ -43,14 +43,14 @@ def _collect(paths: list[str], cfg: Config, *, use_ignore: bool) -> list[Path]:
         elif p.is_file():
             files.append(p)
         else:
-            print(f"prose-lint: no such file: {raw}", file=sys.stderr)  # noqa: T201
+            print(f"lepisma: no such file: {raw}", file=sys.stderr)  # noqa: T201
     return files
 
 
 def _lint_paths(paths: list[str], *, use_ignore: bool = True) -> list[FileResult]:
     """Lint files and folders."""
-    from prose_lint.config import from_dict, load_raw  # noqa: PLC0415
-    from prose_lint.engine import lint_text  # noqa: PLC0415
+    from lepisma.config import from_dict, load_raw  # noqa: PLC0415
+    from lepisma.engine import lint_text  # noqa: PLC0415
 
     cfg = from_dict(load_raw(Path.cwd()))
     files = _collect(paths, cfg, use_ignore=use_ignore)
@@ -59,7 +59,7 @@ def _lint_paths(paths: list[str], *, use_ignore: bool = True) -> list[FileResult
 
 def cmd_check(args: argparse.Namespace) -> int:
     """Lint files in-process (no server). Exit 1 on warnings only with --strict."""
-    from prose_lint.report import print_results  # noqa: PLC0415
+    from lepisma.report import print_results  # noqa: PLC0415
 
     results = _lint_paths(args.paths)
     print_results(results, args.format)
@@ -70,7 +70,7 @@ def cmd_check(args: argparse.Namespace) -> int:
 def cmd_stats(args: argparse.Namespace) -> int:
     """Warnings per 1,000 words, one group per argument. Ignores ``ignore``,
     since stats are mostly run on the test corpus."""
-    from prose_lint.report import print_stats  # noqa: PLC0415
+    from lepisma.report import print_stats  # noqa: PLC0415
 
     print_stats({p: _lint_paths([p], use_ignore=False) for p in args.paths})
     return 0
@@ -78,22 +78,22 @@ def cmd_stats(args: argparse.Namespace) -> int:
 
 def cmd_measure(args: argparse.Namespace) -> int:
     """Readability stats for whole docs: Parquet tables plus report.md."""
-    from prose_lint.config import from_dict, load_raw  # noqa: PLC0415
+    from lepisma.config import from_dict, load_raw  # noqa: PLC0415
 
     try:
-        from prose_lint.measure import Measurer  # noqa: PLC0415
-        from prose_lint.measure_report import print_summary, render  # noqa: PLC0415
+        from lepisma.measure import Measurer  # noqa: PLC0415
+        from lepisma.measure_report import print_summary, render  # noqa: PLC0415
     except ImportError as exc:
         print(  # noqa: T201
-            f"prose-lint: measure needs the 'measure' extra ({exc.name} missing); "
-            'install "prose-lint[measure]"',
+            f"lepisma: measure needs the 'measure' extra ({exc.name} missing); "
+            'install "lepisma[measure]"',
             file=sys.stderr,
         )
         return 2
     cfg = from_dict(load_raw(Path.cwd()))
     files = _collect(args.paths, cfg, use_ignore=not args.no_ignore)
     if not files:
-        print("prose-lint: no docs found", file=sys.stderr)  # noqa: T201
+        print("lepisma: no docs found", file=sys.stderr)  # noqa: T201
         return 1
     result = Measurer(cfg).measure_paths(files)
     out = Path(args.out)
@@ -106,16 +106,16 @@ def cmd_measure(args: argparse.Namespace) -> int:
 
 def cmd_hook(args: argparse.Namespace) -> int:
     """Pre-commit hook: lint staged docs via the server; never fails."""
-    from prose_lint.client import run_hook  # noqa: PLC0415
+    from lepisma.client import run_hook  # noqa: PLC0415
 
     return run_hook(args.files, fmt=args.format, wait_s=args.wait)
 
 
 def cmd_serve(args: argparse.Namespace) -> int:
     """Run the local spaCy server in the foreground."""
-    from prose_lint.client import DEFAULT_IDLE_TIMEOUT_S  # noqa: PLC0415
-    from prose_lint.config import from_dict, load_raw  # noqa: PLC0415
-    from prose_lint.server import serve  # noqa: PLC0415
+    from lepisma.client import DEFAULT_IDLE_TIMEOUT_S  # noqa: PLC0415
+    from lepisma.config import from_dict, load_raw  # noqa: PLC0415
+    from lepisma.server import serve  # noqa: PLC0415
 
     port = args.port or from_dict(load_raw(Path.cwd())).server.port
     idle = DEFAULT_IDLE_TIMEOUT_S if args.idle_timeout is None else args.idle_timeout
@@ -125,26 +125,26 @@ def cmd_serve(args: argparse.Namespace) -> int:
 
 def cmd_stop(args: argparse.Namespace) -> int:
     """Stop a running server."""
-    from prose_lint.client import post  # noqa: PLC0415
+    from lepisma.client import post  # noqa: PLC0415
 
     try:
         post(args.port, "/shutdown", {}, 1.0)
     except OSError:
-        print("prose-lint: no server running", file=sys.stderr)  # noqa: T201
+        print("lepisma: no server running", file=sys.stderr)  # noqa: T201
         return 1
     return 0
 
 
 def hook_command() -> str:
     """Shell command the git hook should run."""
-    exe = shutil.which("prose-lint")
+    exe = shutil.which("lepisma")
     if exe:
         return f'"{exe}" hook'
-    return f'"{sys.executable}" -m prose_lint hook'
+    return f'"{sys.executable}" -m lepisma hook'
 
 
 def cmd_install_hook(_args: argparse.Namespace) -> int:
-    """Add the prose-lint line to this repo's pre-commit hook."""
+    """Add the lepisma line to this repo's pre-commit hook."""
     hooks = Path(
         subprocess.run(
             ["git", "rev-parse", "--git-path", "hooks"],  # noqa: S607
@@ -158,7 +158,7 @@ def cmd_install_hook(_args: argparse.Namespace) -> int:
     if hook.exists():
         text = hook.read_text()
         if HOOK_MARKER in text:
-            print(f"prose-lint: already in {hook}")  # noqa: T201
+            print(f"lepisma: already in {hook}")  # noqa: T201
             return 0
         lines = text.splitlines(keepends=True)
         # Run before the existing hook body, which may end in `exec`.
@@ -169,19 +169,19 @@ def cmd_install_hook(_args: argparse.Namespace) -> int:
         hooks.mkdir(parents=True, exist_ok=True)
         hook.write_text("#!/bin/sh\n" + line)
     hook.chmod(hook.stat().st_mode | 0o111)
-    print(f"prose-lint: added to {hook}")  # noqa: T201
+    print(f"lepisma: added to {hook}")  # noqa: T201
     return 0
 
 
 def cmd_guide(args: argparse.Namespace) -> int:
     """Print the agent guide for a topic, auto-picked when none is given."""
-    from prose_lint.guide import detect, render  # noqa: PLC0415
+    from lepisma.guide import detect, render  # noqa: PLC0415
 
     if args.topic:
-        topic, head = args.topic, f"# prose-lint guide: {args.topic}"
+        topic, head = args.topic, f"# lepisma guide: {args.topic}"
     else:
         topic, reason = detect(Path.cwd())
-        head = f"# prose-lint guide: {reason} -> {topic}"
+        head = f"# lepisma guide: {reason} -> {topic}"
     try:
         sys.stdout.write(f"{head}\n\n{render(topic)}")
         sys.stdout.flush()
@@ -193,9 +193,9 @@ def cmd_guide(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     """Argument parser for all subcommands."""
     parser = argparse.ArgumentParser(
-        prog="prose-lint",
+        prog="lepisma",
         description="Soft warnings for hard-to-read Markdown prose. "
-        "Run `prose-lint guide` first.",
+        "Run `lepisma guide` first.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -206,9 +206,9 @@ def build_parser() -> argparse.ArgumentParser:
         description="Print Markdown instructions for an agent and exit 0.\n\n"
         "topics:\n"
         + "".join(f"  {name:<8}{line}\n" for name, line in TOPICS.items())
-        + "\nWith no topic, pick one from files: triage when prose-lint.toml is\n"
+        + "\nWith no topic, pick one from files: triage when lepisma.toml is\n"
         "in the current directory or above, or pyproject.toml here has a\n"
-        "`prose-lint hook` step; otherwise setup.",
+        "`lepisma hook` step; otherwise setup.",
     )
     p.add_argument("topic", nargs="?", choices=list(TOPICS))
     p.set_defaults(func=cmd_guide)
@@ -272,7 +272,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--port", type=int, default=8737)
     p.set_defaults(func=cmd_stop)
 
-    p = sub.add_parser("install-hook", help="add prose-lint to .git pre-commit hook")
+    p = sub.add_parser("install-hook", help="add lepisma to .git pre-commit hook")
     p.set_defaults(func=cmd_install_hook)
     return parser
 
@@ -283,9 +283,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return args.func(args)
     except RuntimeError as exc:
-        from prose_lint.spacy_model import ModelError  # noqa: PLC0415
+        from lepisma.spacy_model import ModelError  # noqa: PLC0415
 
         if not isinstance(exc, ModelError):
             raise
-        print(f"prose-lint: {exc}", file=sys.stderr)  # noqa: T201
+        print(f"lepisma: {exc}", file=sys.stderr)  # noqa: T201
         return 2

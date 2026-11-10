@@ -1,6 +1,6 @@
 import pytest
 
-from prose_lint.config import ConfigError, find_config, from_dict, load_raw, rule_id
+from lepisma.config import ConfigError, find_config, from_dict, load_raw, rule_id
 
 
 def test_overrides_and_rule_names():
@@ -63,8 +63,8 @@ def test_rule_id_lookup():
 
 
 def test_find_and_load_walk_up(tmp_path):
-    (tmp_path / "prose-lint.toml").write_text("[rules.R1]\nmax_words = 20\n")
+    (tmp_path / "lepisma.toml").write_text("[rules.R1]\nmax_words = 20\n")
     nested = tmp_path / "a" / "b"
     nested.mkdir(parents=True)
-    assert find_config(nested) == tmp_path / "prose-lint.toml"
+    assert find_config(nested) == tmp_path / "lepisma.toml"
     assert load_raw(nested) == {"rules": {"R1": {"max_words": 20}}}

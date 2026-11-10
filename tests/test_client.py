@@ -3,8 +3,8 @@ import subprocess
 
 import pytest
 
-from prose_lint import client
-from prose_lint.client import Skip, lint_via_server, run_hook
+from lepisma import client
+from lepisma.client import Skip, lint_via_server, run_hook
 
 
 def free_port() -> int:
@@ -33,7 +33,7 @@ def test_no_server_starts_one_and_skips_quietly(repo, monkeypatch, capsys):
     monkeypatch.setattr(
         client, "spawn_server", lambda port: spawned.append(port) or True
     )
-    monkeypatch.setenv("PROSE_LINT_PORT", str(free_port()))
+    monkeypatch.setenv("LEPISMA_PORT", str(free_port()))
     assert run_hook() == 0
     assert capsys.readouterr() == ("", "")
     assert len(spawned) == 1
@@ -51,7 +51,7 @@ def test_explicit_files_skip_git_discovery(repo, monkeypatch):
 
 
 def test_disable_env_skips_everything(repo, monkeypatch):
-    monkeypatch.setenv("PROSE_LINT_DISABLE", "1")
+    monkeypatch.setenv("LEPISMA_DISABLE", "1")
     monkeypatch.setattr(client, "staged_files", lambda *a: pytest.fail("ran"))
     assert run_hook() == 0
 
@@ -90,7 +90,7 @@ def test_results_are_printed(repo, monkeypatch, capsys):
     assert run_hook() == 0
     out = capsys.readouterr().out.splitlines()
     assert out[0] == 'doc.md:1:4 R3 Habit word "leverage"; try: use.'
-    assert out[1].startswith("prose-lint: 1 warning(s) in 1 file(s)")
+    assert out[1].startswith("lepisma: 1 warning(s) in 1 file(s)")
 
 
 def test_stale_server_is_replaced_and_skipped(monkeypatch):

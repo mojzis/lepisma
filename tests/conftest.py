@@ -1,7 +1,7 @@
 import pytest
 
-from prose_lint.config import Config
-from prose_lint.engine import lint_text, load_nlp
+from lepisma.config import Config
+from lepisma.engine import lint_text, load_nlp
 
 
 @pytest.fixture(scope="session")
