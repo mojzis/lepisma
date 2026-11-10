@@ -1,7 +1,8 @@
 # prose-lint
 
 Soft prose warnings for Markdown written by Claude. This is the spaCy prototype. See
-README.md for the design, rules and roadmap.
+README.md for the design, rules and roadmap. Run `uv run prose-lint guide` before
+using the CLI.
 
 ## Layout
 
@@ -21,6 +22,9 @@ README.md for the design, rules and roadmap.
 - `server.py` is the FastAPI server on 127.0.0.1:8737, with an LRU cache and idle exit.
 - `corpus/` is the baseline test set. `tests/test_corpus.py` checks that bad docs score
   far worse than good ones.
+- `guide.py` and `guide/*.md` are `prose-lint guide`, the agent instructions. Pages
+  take `{{section.key}}` placeholders filled from `Config` defaults. Update the
+  pages when a command, rule or config key changes.
 
 ## Tuning a rule
 
