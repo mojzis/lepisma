@@ -3,6 +3,7 @@ in-process ``check`` command load this module."""
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Iterator
 from functools import cache
 from typing import TYPE_CHECKING
 
@@ -13,6 +14,7 @@ from prose_lint.rules import RULE_FUNCS
 
 if TYPE_CHECKING:
     from spacy.language import Language
+    from spacy.tokens import Doc
 
 MODEL = "en_core_web_sm"
 
@@ -25,6 +27,27 @@ def load_nlp() -> Language:
     return spacy.load(MODEL, disable=["ner"])
 
 
+def parse_blocks(
+    nlp: Language, blocks: Iterable[markdown.Block], batch_size: int | None = None
+) -> Iterator[Doc]:
+    """Run spaCy over blocks, starting a sentence at each ``Block.breaks`` offset.
+
+    The parser keeps sentence starts that are set before it runs, so a line-per-item
+    list splits into items even when the lines carry no end punctuation.
+    """
+
+    def docs() -> Iterator[Doc]:
+        for block in blocks:
+            doc = nlp.make_doc(block.text)
+            starts = set(block.breaks)
+            for tok in doc:
+                if tok.idx in starts:
+                    tok.is_sent_start = True
+            yield doc
+
+    return nlp.pipe(docs(), batch_size=batch_size)
+
+
 def lint_text(
     path: str, text: str, cfg: Config, nlp: Language | None = None
 ) -> FileResult:
@@ -34,7 +57,7 @@ def lint_text(
     enabled = [rid for rid, (_, attr) in RULES.items() if getattr(cfg, attr).enabled]
     warnings: list[Warning] = []
     words = 0
-    for block, doc in zip(blocks, nlp.pipe(b.text for b in blocks), strict=True):
+    for block, doc in zip(blocks, parse_blocks(nlp, blocks), strict=True):
         words += sum(1 for t in doc if not (t.is_punct or t.is_space))
         for rid in enabled:
             if rid in block.disabled:

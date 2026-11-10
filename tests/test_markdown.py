@@ -77,3 +77,27 @@ C.
 
 def test_multiline_html_comment_is_skipped():
     assert texts("<!--\nrobust notes\n-->\nText.\n") == ["Text."]
+
+
+def breaks_at(source: str) -> list[str]:
+    """Text of each forced sentence start in a single-block ``source``."""
+    (block,) = parse(source)
+    return [block.text[b : b + 6] for b in block.breaks]
+
+
+def test_marker_and_bold_label_lines_start_new_items():
+    assert breaks_at("✅ One item\n✅ Two item\n⚠️ Three item\n") == ["✅ Two ", "⚠️ Thr"]
+    assert breaks_at("**Status:** Draft\n**Owner**: Platform Team\n") == ["Owner:"]
+
+
+def test_plain_label_breaks_only_after_another_item_line():
+    assert breaks_at("Search: shows by name\nLimit: basic metadata\n") == ["Limit:"]
+    assert breaks_at("Never put it in a hook or\nCI: it runs the suite.\n") == []
+
+
+def test_wrapped_prose_does_not_break():
+    source = (
+        "The tool reads the\n`config` file, the [guide](x.md) and\nPython sources\n"
+    )
+    assert breaks_at(source) == []
+    assert breaks_at("A shortcut in the\n⌘-tab switcher and an arrow\n→ here\n") == []

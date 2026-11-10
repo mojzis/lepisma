@@ -27,7 +27,7 @@ from spacy.tokens import Doc
 
 from prose_lint import markdown
 from prose_lint.config import Config
-from prose_lint.engine import load_nlp
+from prose_lint.engine import load_nlp, parse_blocks
 from prose_lint.rules import habit_hits, is_nominal, is_word, noun_count, noun_runs
 
 if TYPE_CHECKING:
@@ -189,7 +189,7 @@ class Measurer:
                     sections.append(sec)
                 elif self._keep(block):
                     pending.append((sec, block))
-        parsed = self.nlp.pipe((b.text for _, b in pending), batch_size=256)
+        parsed = parse_blocks(self.nlp, (b for _, b in pending), batch_size=256)
         for (sec, block), doc in zip(pending, parsed, strict=True):
             sec.blocks.append((block, self._dep_distance(doc)))
         return sections

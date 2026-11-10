@@ -125,3 +125,36 @@ def test_positions_point_at_source(lint):
 
 def test_default_config_is_valid():
     assert Config().long_sentence.max_words == 25
+
+
+def test_unpunctuated_checkmark_lines_are_separate_sentences(lint):
+    source = (
+        "✅ Loader picks up new theme folders without restart\n"
+        "✅ Help page renders on narrow mobile screens\n"
+        "✅ Progress bar resets after the student logs out\n"
+    )
+    assert "R1" not in rules(lint(source))
+
+
+def test_bold_label_lines_are_separate_sentences(lint):
+    source = (
+        "**Target**: Secure Python code execution in the browser via Pyodide\n"
+        "**Context**: The drawing app runs user code in the main thread today\n"
+        "**Goal**: Layered security against runaway loops and malicious imports\n"
+    )
+    assert "R1" not in rules(lint(source))
+
+
+def test_hard_wrapped_long_sentence_still_warns_at_its_start(lint):
+    source = (
+        "Intro.\n\n"
+        "Short one. We read the file and then we print it, we read the\n"
+        "file and then we print it, and so we stop the run here now\n"
+        "Python keeps going after that\n"
+    )
+    (w,) = [w for w in lint(source) if w.rule == "R1"]
+    assert (w.line, w.col, w.message) == (
+        3,
+        12,
+        "Sentence has 31 words; consider splitting.",
+    )

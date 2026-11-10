@@ -8,6 +8,7 @@ tell the placeholder apart from real words via ``Block.code_spans``.
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -31,6 +32,12 @@ _DIRECTIVE = re.compile(
     r"<!--\s*prose-lint:\s*(disable-next|disable|enable)\b([^>]*?)-->", re.IGNORECASE
 )
 _IDENTIFIER_ITEM = re.compile(r"^[\w.\-/:`=\[\]()]+,?$")
+# Line-per-item text that Markdown joins into one paragraph: "**Status:** Draft"
+# or "**Status**: Draft", and "Status: Draft" with at most three words.
+_BOLD_LABEL = re.compile(r"^(\*\*|__)[^*_]{1,60}?(:\1|\1\s*:)")
+_PLAIN_LABEL = re.compile(r"^[A-Z][\w'&/()\-]*(?: [\w'&/()\-]+){0,2}:\s")
+# Variation selector, zero-width joiner and skin tones that trail an emoji.
+_EMOJI_TAIL = re.compile("[\ufe0f\u200d\U0001f3fb-\U0001f3ff]")
 
 _INLINE = re.compile(
     r"(?P<code>(?P<ticks>`+).+?(?P=ticks))"
@@ -56,6 +63,8 @@ class Block:
     code_spans: list[tuple[int, int]] = field(default_factory=list)
     disabled: frozenset[str] = frozenset()
     raw: list[str] = field(default_factory=list)
+    # Offsets in ``text`` where a source line starts a new item, so a new sentence.
+    breaks: list[int] = field(default_factory=list)
 
     def position(self, offset: int) -> tuple[int, int]:
         """Source (line, col) of the character at ``offset``."""
@@ -76,11 +85,13 @@ class Block:
 
     def add_line(self, content: str, line: int, col0: int) -> None:
         """Append one source line; ``col0`` is the 0-based column of ``content``."""
-        self.raw.append(content)
         if self.text:
             last = self.origins[-1]
             self.text += " "
             self.origins.append(last)
+            if _starts_item(self.raw[-1], content):
+                self.breaks.append(len(self.text))
+        self.raw.append(content)
         pos = 0
         for m in _INLINE.finditer(content):
             for i in range(pos, m.start()):
@@ -112,6 +123,36 @@ class Block:
         if len(parts) == 1:
             return bool(_IDENTIFIER_ITEM.match(parts[0]))
         return all(p.strip(",.;:") == PLACEHOLDER for p in parts)
+
+
+def _starts_with_marker(line: str) -> bool:
+    """True for a line led by an emoji or symbol and a space, as in "✅ Done"."""
+    i = 0
+    while i < len(line) and (
+        unicodedata.category(line[i]) == "So" or (i and _EMOJI_TAIL.match(line[i]))
+    ):
+        i += 1
+    return 0 < i < len(line) and line[i].isspace()
+
+
+def _is_item_line(line: str) -> bool:
+    return bool(
+        _starts_with_marker(line) or _BOLD_LABEL.match(line) or _PLAIN_LABEL.match(line)
+    )
+
+
+def _starts_item(prev: str, line: str) -> bool:
+    """True when the soft line break before ``line`` ends an item, not a wrap.
+
+    A wrapped sentence goes on with a lowercase word, code, a link or a proper
+    noun, so only lines that look like the start of an item break: an emoji or
+    symbol marker, or a bold label. A plain "Label:" breaks only after another
+    item line, since "...in a hook or\nCI: it runs..." is a wrap.
+    """
+    line = line.lstrip()
+    if _starts_with_marker(line) or _BOLD_LABEL.match(line):
+        return True
+    return bool(_PLAIN_LABEL.match(line)) and _is_item_line(prev.lstrip())
 
 
 class _Disabler:
