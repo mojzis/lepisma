@@ -1,4 +1,27 @@
-# Python Template
+# prose-lint
+
+Soft prose warnings for Markdown written by Claude. This is the spaCy prototype. See
+README.md for the design, rules and roadmap.
+
+## Layout
+
+- `markdown.py` turns Markdown into prose blocks and maps each character back to its
+  line and column. It drops code, tables, front matter and HTML. Inline code becomes
+  the `CODE` placeholder.
+- `rules.py` holds R1 to R4. Each is `(block, doc, cfg) -> Iterator[Finding]`.
+- `engine.py` runs spaCy and the rules. Only it and `server.py` import spaCy.
+- `client.py` is the commit hook client. **Stdlib only**; it never raises and always
+  exits 0. Keep spaCy and FastAPI out of it, and out of `config.py`, `models.py` and
+  `report.py`, which it imports.
+- `server.py` is the FastAPI server on 127.0.0.1:8737, with an LRU cache and idle exit.
+- `corpus/` is the baseline test set. `tests/test_corpus.py` checks that bad docs score
+  far worse than good ones.
+
+## Tuning a rule
+
+Run `uv run prose-lint stats corpus/bad corpus/good` before and after a change to a
+rule or threshold. A good change keeps bad docs high and good docs low. Add a test to
+`tests/test_rules.py` for each false positive you fix.
 
 ## Commands
 
@@ -20,7 +43,8 @@ ty-find's binary is `tyf`.
 
 ### On every commit
 
-**madoqua** is the only commit hook (`hooks/pre-commit`, `core.hooksPath=hooks`). It
+`prose-lint hook` runs first in `hooks/pre-commit`: it lints staged Markdown, warns only and never blocks.
+**madoqua** is the Python commit hook (`hooks/pre-commit`, `core.hooksPath=hooks`). It
 acts on staged `.py`/`.pyi` files only — a commit without one is a silent no-op, not a
 verified hook.
 
@@ -59,8 +83,11 @@ Two changes from the hook this replaced:
 
 ```
 uv sync
-uv run madoqua install    # once; core.hooksPath is local config, not tracked
+git config core.hooksPath hooks   # once; local config, not tracked
 ```
+
+Don't run `madoqua install`: it overwrites `hooks/pre-commit` and drops the
+prose-lint line.
 
 ### Refreshing the toolbox
 
@@ -70,19 +97,6 @@ uv lock --refresh --upgrade-package madoqua --upgrade-package gerenuk --upgrade-
 
 `--refresh` matters: without it uv may serve a cached index and miss a release
 published minutes ago.
-
-## New project from this template
-
-When starting a new project from this template, set up a GitHub Actions CI pipeline
-(`.github/workflows/ci.yml`) that runs `uv sync` and `uv run poe check` on push and pull
-request.
-
-**Use the newest major version of every action.** Versions remembered from training
-data are usually outdated, so look each one up before writing it, e.g.
-`gh release view --repo actions/checkout` (or the latest-release / list-tags tool from the
-GitHub integration). This covers at least `actions/checkout` and `astral-sh/setup-uv`.
-Use `setup-uv` to install uv and Python instead of `actions/setup-python`, and turn on its
-cache. Don't copy version tags from older workflows or from memory.
 
 ## Notes
 

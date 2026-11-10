@@ -1,4 +1,6 @@
 #!/bin/sh
 root=$(git rev-parse --show-toplevel)
+# prose-lint: warn-only prose feedback on staged Markdown; never blocks.
+[ -x "$root/.venv/bin/prose-lint" ] && "$root/.venv/bin/prose-lint" hook
 [ -x "$root/.venv/bin/madoqua" ] && exec "$root/.venv/bin/madoqua" run
 exec madoqua run

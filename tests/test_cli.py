@@ -1,0 +1,50 @@
+import json
+import subprocess
+
+from prose_lint.cli import HOOK_MARKER, main
+
+
+def test_check_text(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "a.md").write_text("We utilize it.\n")
+    assert main(["check", "a.md"]) == 0
+    assert capsys.readouterr().out == 'a.md:1:4 R3 Habit word "utilize"; try: use.\n'
+
+
+def test_check_json_strict(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "a.md").write_text("We utilize it.\n")
+    assert main(["check", "--format", "json", "--strict", "."]) == 1
+    data = json.loads(capsys.readouterr().out)
+    assert data["summary"]["warnings"] == 1
+    assert data["warnings"][0]["name"] == "habit-word"
+
+
+def test_check_respects_ignore(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "prose-lint.toml").write_text('ignore = ["skip/*"]\n')
+    (tmp_path / "skip").mkdir()
+    (tmp_path / "skip" / "a.md").write_text("We utilize it.\n")
+    assert main(["check", "--strict", "."]) == 0
+    assert capsys.readouterr().out == ""
+
+
+def test_stats_prints_groups(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "a.md").write_text("We utilize it.\n")
+    main(["stats", "."])
+    out = capsys.readouterr().out
+    assert "== ." in out
+    assert "TOTAL" in out
+
+
+def test_install_hook_prepends_and_is_idempotent(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    subprocess.run(["git", "init", "-q"], check=True)
+    hook = tmp_path / ".git" / "hooks" / "pre-commit"
+    hook.write_text("#!/bin/sh\nexec other-hook\n")
+    assert main(["install-hook"]) == 0
+    assert main(["install-hook"]) == 0
+    first, ours, rest = hook.read_text().splitlines()
+    assert (first, rest) == ("#!/bin/sh", "exec other-hook")
+    assert HOOK_MARKER in ours

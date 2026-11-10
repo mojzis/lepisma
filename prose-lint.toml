@@ -1,0 +1,34 @@
+# prose-lint settings for this repo. Every key is optional; defaults shown in
+# README.md. Copy this file to the root of any repo that uses prose-lint.
+
+# Paths (globs, relative to the repo root) the hook never lints.
+ignore = ["corpus/**", "CHANGELOG.md"]
+
+# extensions = [".md", ".markdown"]
+
+[server]
+# port = 8737
+# Skip quietly when the server takes longer than this.
+# timeout_ms = 300
+
+[rules.long-sentence]      # R1
+# enabled = true
+# max_words = 25
+# strong_words = 35
+
+[rules.noun-stack]         # R2
+# min_nouns = 3
+# strong_nouns = 5
+# ignore_all_propn = true
+
+[rules.habit-word]         # R3
+# words = [...]            # replaces the built-in list
+# extra_words = ["paradigm", "game-changer"]
+# suggestions = { paradigm = "model" }
+# max_per_paragraph = 2
+
+[rules.nominalization]     # R4
+# weak_verbs = ["be", "have", "do", "make", "provide", "perform", ...]
+# extra_stoplist = ["migration"]
+# min_length = 7
+# max_per_sentence = 4

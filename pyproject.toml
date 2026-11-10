@@ -1,12 +1,25 @@
 [project]
-name = "python-template"
+name = "prose-lint"
 version = "0.1.0"
-description = "A Python project template"
+description = "Soft, fast prose warnings for Claude-written Markdown docs"
 requires-python = ">=3.11"
+dependencies = [
+    "spacy>=3.8,<3.9",
+    "en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
+    "fastapi>=0.115",
+    "pydantic>=2",
+    "uvicorn>=0.32",
+]
+
+[project.scripts]
+prose-lint = "prose_lint.cli:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [dependency-groups]
 dev = [
@@ -26,6 +39,7 @@ dev = [
     "deptry",
     "interrogate",
     "poethepoet",
+    "httpx>=0.28.1",
 ]
 
 [tool.ruff]
@@ -34,9 +48,11 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "S", "SIM", "C4", "DTZ", "T20", "PTH", "ERA", "PL", "TRY", "RUF"]
+# Short f-string messages on our own exceptions read better than subclasses.
+ignore = ["TRY003"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "S105", "S106", "PLR2004"]
+"tests/**" = ["S101", "S105", "S106", "S603", "S607", "PLR2004"]
 
 [tool.ruff.format]
 
@@ -45,6 +61,7 @@ select = ["E", "F", "W", "I", "UP", "B", "S", "SIM", "C4", "DTZ", "T20", "PTH", 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--cov=src --cov-report=term-missing"
+filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]
 
 [tool.coverage.run]
 source = ["src"]
@@ -54,8 +71,13 @@ show_missing = true
 
 [tool.vulture]
 paths = ["src"]
+ignore_decorators = ["@app.get", "@app.post"]
+ignore_names = ["should_exit"]
 
 [tool.deptry]
+known_first_party = ["prose_lint"]
+# The spaCy model is loaded by name via spacy.load(), never imported.
+per_rule_ignores = { DEP002 = ["en-core-web-sm"] }
 
 [tool.interrogate]
 fail_under = 0
@@ -112,7 +134,7 @@ cmd = "biston scan ."
 help = "Clone detection (biston)"
 
 [tool.poe.tasks.dead-code]
-cmd = "vulture src"
+cmd = "vulture"
 help = "Dead code detection"
 
 [tool.poe.tasks.unused-deps]
