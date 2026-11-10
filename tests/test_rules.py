@@ -158,3 +158,132 @@ def test_hard_wrapped_long_sentence_still_warns_at_its_start(lint):
         12,
         "Sentence has 31 words; consider splitting.",
     )
+
+
+# Rollout false positives (~/git/pp/prose-lint notes): verbs tagged as nouns.
+@pytest.mark.parametrize(
+    "source",
+    [
+        "- Test line number accuracy\n",
+        "- Design word search grid:\n",
+        "- Implement group CRUD endpoints\n",
+        "- Checks notebook file existence\n",
+        "- Purpose: Test database session management\n",
+        "- `assert_valid()` - Validates crossword grid structure\n",
+        "- ✅ Zero context overflow issues\n",
+        "Theme follows the OS; a header toggle pins light/dark per viewer.",
+        "The student progress bar resets after a logout.",
+        "Agents never run under a repo: Claude Code loads ancestor CLAUDE.md files.",
+        "Students reference error hints in their fixes.",
+    ],
+)
+def test_noun_stack_skips_verbs_tagged_as_nouns(lint, source):
+    assert "R2" not in rules(lint(source))
+
+
+# Rollout false positives: a name plus a noun or two.
+@pytest.mark.parametrize(
+    "source",
+    [
+        "Explore and search your Claude Code conversation logs.",
+        "You need a Google Cloud Platform account first.",
+        "It sits beside the cache stats on the Cost Overview portfolio panel.",
+    ],
+)
+def test_noun_stack_skips_proper_noun_compounds(lint, source):
+    assert "R2" not in rules(lint(source))
+
+
+def test_proper_noun_limit_is_configurable(lint):
+    source = "Explore and search your Claude Code conversation logs."
+    cfg = from_dict({"rules": {"noun-stack": {"max_proper_nouns": 2}}})
+    assert "R2" in rules(lint(source, cfg))
+
+
+# Rollout true positives that must stay flagged.
+@pytest.mark.parametrize(
+    ("source", "phrase"),
+    [
+        ("- Template type property verification\n", "Template type property"),
+        ("- ✅ Maximum placement attempt limits\n", "Maximum placement attempt"),
+        (
+            "- 2 tests failing due to async context manager mocking complexity\n",
+            "context manager mocking complexity",
+        ),
+        # The leading verb drops out; the four nouns after it still stack.
+        (
+            "- Implement Unicode character range analysis for language detection\n",
+            '("Unicode character range analysis")',
+        ),
+    ],
+)
+def test_noun_stack_keeps_real_stacks(lint, source, phrase):
+    (w,) = [w for w in lint(source) if w.rule == "R2"]
+    assert phrase in w.message
+
+
+# Rollout false positives: copula, counted things, plain verbs and hand-overs.
+@pytest.mark.parametrize(
+    "source",
+    [
+        "Positions are fractions of the panel.",
+        "An **actor** is one placement of a character inside a panel.",
+        "Cut every word that carries no information.",
+        "This file provides guidance to Claude Code when working with code in "
+        "this repository.",
+        "Provide image descriptions or sources.",
+        "Three exception handlers give every failure a visible representation.",
+    ],
+)
+def test_nominalization_skips_plain_uses(lint, source):
+    assert "R4" not in rules(lint(source))
+
+
+@pytest.mark.parametrize(
+    ("source", "phrase"),
+    [
+        (
+            "The qa command performs one shared mutation.",
+            "performs one shared mutation",
+        ),
+        ("We need to make a design decision.", "make a design decision"),
+        ("Phase 1 is complete and provides a solid foundation.", "provides a solid"),
+        ("The fix is the implementation of retries.", "is the implementation"),
+    ],
+)
+def test_nominalization_keeps_hidden_verbs(lint, source, phrase):
+    (w,) = [w for w in lint(source) if w.rule == "R4"]
+    assert phrase in w.message
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "- Ensure the build passes\n",
+        "- [ ] Ensure no visual regressions\n",
+        "5. **Test contrast**: Ensure shapes are distinguishable\n",
+        "The app starts successfully.",
+        "Only show essential information.",
+    ],
+)
+def test_habit_words_skip_checklist_ensure_and_plain_words(lint, source):
+    assert "R3" not in rules(lint(source))
+
+
+@pytest.mark.parametrize(
+    ("source", "word"),
+    [
+        ("This pattern ensures correct initialization order.", "ensure"),
+        ("- Ensures minimum gaps between obstacles\n", "ensure"),
+        ("Phase 1 has been successfully implemented.", "successfully"),
+        ("Successfully implemented the worksheet export.", "successfully"),
+        ("It gives us a solid foundation for later work.", "solid foundation"),
+    ],
+)
+def test_habit_words_catch_filler(lint, source, word):
+    assert [w.message.split('"')[1] for w in lint(source) if w.rule == "R3"] == [word]
+
+
+def test_item_start_exemption_is_configurable(lint):
+    cfg = from_dict({"rules": {"habit-word": {"ok_at_item_start": []}}})
+    assert "R3" in rules(lint("- Ensure the build passes\n", cfg))

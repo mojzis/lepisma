@@ -20,15 +20,17 @@ ignore = ["corpus/**", "CHANGELOG.md"]
 # min_nouns = 4
 # strong_nouns = 5
 # ignore_all_propn = true
+# max_proper_nouns = 1     # more than this and the run is a name, not a stack
 
 [rules.habit-word]         # R3
 # words = [...]            # replaces the built-in list
 # extra_words = ["paradigm", "game-changer"]
 # suggestions = { paradigm = "model" }
 # max_per_paragraph = 2
+# ok_at_item_start = ["ensure"]   # fine as a list item's first word
 
 [rules.nominalization]     # R4
-# weak_verbs = ["be", "have", "do", "make", "provide", "perform", ...]
+# weak_verbs = ["be", "have", "do", "make", "provide", "perform", "give", "offer", ...]
 # extra_stoplist = ["migration"]
 # min_length = 7
 # max_per_sentence = 4

@@ -23,13 +23,18 @@ DEFAULT_HABIT_WORDS: dict[str, str] = {
     "utilize": "use",
     "delve": "look at",
     "crucial": "say why it matters",
-    "essential": "needed, or cut it",
     "streamline": "simplify",
     "ensure": "make sure, or check",
     "facilitate": "help, or let",
     "in order to": "to",
     "it is important to note": "cut it and state the fact",
+    # Status-report filler. "successfully" counts only before a verb.
+    "successfully": "cut it; say what now works",
+    "solid foundation": "say what it lets you build",
 }
+
+# Habit words that are fine as the first word of a list item or checklist line.
+DEFAULT_OK_AT_ITEM_START = ["ensure"]
 
 DEFAULT_WEAK_VERBS = [
     "be",
@@ -40,7 +45,6 @@ DEFAULT_WEAK_VERBS = [
     "perform",
     "give",
     "offer",
-    "carry",
     "conduct",
     "undertake",
 ]
@@ -98,6 +102,9 @@ class NounStack:
     strong_nouns: int = 5
     # A run of only proper nouns is usually a product name ("GitHub Actions CI").
     ignore_all_propn: bool = True
+    # More proper nouns than this make a run a name plus a noun ("Claude Code
+    # conversation logs", "Google Cloud Platform account"), not a stack.
+    max_proper_nouns: int = 1
 
 
 @dataclass(slots=True)
@@ -106,6 +113,9 @@ class HabitWords:
 
     enabled: bool = True
     words: dict[str, str] = field(default_factory=lambda: dict(DEFAULT_HABIT_WORDS))
+    ok_at_item_start: list[str] = field(
+        default_factory=lambda: list(DEFAULT_OK_AT_ITEM_START)
+    )
     max_per_paragraph: int = 2
 
 

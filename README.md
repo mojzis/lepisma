@@ -95,17 +95,38 @@ Details:
   targets. List items that hold only an identifier, like `- max_retries`, are skipped
   too.
 - **Headings** get R3 only.
-- **R2** ignores runs made only of proper nouns, like "GitHub Actions CI". Inline code
-  breaks a run, and a hyphenated word like "event-store" counts as one noun. The
-  threshold is 4, not 3: at 3 it flagged plain technical terms like "Unix domain
-  socket" in real docs.
+- **R2** ignores runs made only of proper nouns, like "GitHub Actions CI". It also
+  ignores runs with more than one proper noun (`max_proper_nouns`), like "Claude Code
+  conversation logs". Inline code breaks a run, and a hyphenated word like
+  "event-store" counts as one noun. The threshold is 4, not 3: at 3 it flagged plain
+  technical terms like "Unix domain socket" in real docs. At 5 it would miss every true
+  stack the rollout found. The tagger often calls a verb a noun, so R2 drops these from
+  a run before it counts:
+  - a verb that opens a list item, sentence or labelled line: "Test line number
+    accuracy", "Purpose: Validates crossword grid structure";
+  - a plural before another noun, which ends a subject: "a header toggle pins
+    light/dark", "Claude Code loads ancestor files";
+  - a plural verb that the parser made the root of a verbless sentence, like "resets"
+    in "The progress bar resets after a logout".
+
+  The verb test uses the WordNet verb list in spaCy's lemmatizer.
 <!-- prose-lint: disable-next R3 -->
 - **R3** matches inflections, so "leveraging" counts as "leverage". The default list:
-  comprehensive, robust, seamless, leverage, utilize, delve, crucial, essential,
-  streamline, ensure, facilitate, "in order to", "it is important to note".
+  comprehensive, robust, seamless, seamlessly, leverage, utilize, delve, crucial,
+  streamline, ensure, facilitate, "in order to", "it is important to note",
+  successfully, "solid foundation". "successfully" counts only right before a verb:
+  "successfully implemented", not "runs successfully". Words in `ok_at_item_start`
+  (default: ensure) are fine as the first word of a list item or checklist line, as in
+  "- Ensure the build passes". "essential" is off the list. In real docs it mostly
+  meant just that ("essential information").
 - **R4** counts nouns that end in -tion, -sion, -ment, -ance, -ence or -ity. A stoplist
-  removes concrete words like "function", "document" and "instance". For "is", the noun
-  must take "of", as in "is the implementation of".
+  removes concrete words like "function", "document" and "instance". A weak verb is
+  flagged only when its noun comes from a verb, as "placement" comes from "place".
+  "fraction" and "flexibility" have no verb, so nothing is hidden. For "be" and "have",
+  the noun must also take "of" and not be counted. So "is the implementation of" is
+  flagged, but "is one placement of" is not. "provide", "give" and "offer" are
+  skipped when they hand something over. That means a recipient ("provides guidance to
+  Claude Code") or a named deliverable ("provide image descriptions").
 
 ## Measuring whole docs
 
@@ -205,9 +226,9 @@ Current numbers (warnings per 1,000 words):
 
 | Set | Words | R1 | R2 | R3 | R4 | Total |
 | --- | --- | --- | --- | --- | --- | --- |
-| bad | 2,698 | 7.4 | 3.3 | 44.5 | 8.9 | 64.1 |
+| bad | 2,698 | 7.4 | 3.3 | 41.9 | 8.5 | 61.2 |
 | good | 1,235 | 0 | 0 | 0.8 | 0 | 0.8 |
-| toolbox | 51,529 | 9.0 | 0.2 | 0.1 | 0.2 | 9.5 |
+| toolbox | 51,529 | 9.0 | 0.1 | 0.0 | 0.2 | 9.3 |
 
 ## Roadmap
 

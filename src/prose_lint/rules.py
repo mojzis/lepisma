@@ -15,6 +15,10 @@ if TYPE_CHECKING:
     from prose_lint.markdown import Block
 
 NOUNS = {"NOUN", "PROPN"}
+# Verb lexicons by id(vocab), registered by engine.parse_blocks. Kept off the
+# Doc so it never gets copied or serialized with one.
+_VERB_LEXICONS: dict[int, frozenset[str]] = {}
+_PLURAL_TAGS = {"NNS", "NNPS"}
 _MAX_PHRASE = 5  # quote "verb ... noun" in R4 messages only when this close
 
 # Nominalization -> verb, for common cases the suffix rules get wrong.
@@ -90,6 +94,34 @@ def verb_form(noun: str) -> str | None:
         return noun[: -len("ation")] + "ate"
     if noun.endswith("ment") and len(noun) > len("ment") + 3:
         return noun[: -len("ment")]
+    return None
+
+
+# Suffix -> endings to try on the stem when looking for the source verb.
+_DERIVATIONS = [
+    ("ation", ("ate", "", "e")),  # create, inform, explore
+    ("ition", ("", "e", "ish")),  # add, define, abolish
+    ("tion", ("t", "te", "e")),  # adopt, complete, produce
+    ("sion", ("d", "de", "t", "se")),  # extend, decide, convert, revise
+    ("ment", ("",)),  # deploy
+    ("ance", ("", "e", "ate")),  # perform, guide, tolerate
+    ("ence", ("", "e")),  # depend, confide
+]
+
+
+def source_verb(noun: str, verbs: frozenset[str]) -> str | None:
+    """The verb a noun derives from ("placement" -> "place"), checked against
+    ``verbs``. None when the noun has no verb behind it ("fraction", "substance")."""
+    noun = noun.lower()
+    guess = verb_form(noun)
+    if noun in VERB_FORMS or (guess and guess in verbs):
+        return guess
+    for suffix, endings in _DERIVATIONS:
+        if noun.endswith(suffix):
+            stem = noun[: -len(suffix)]
+            for ending in endings:
+                if len(stem) > 1 and stem + ending in verbs:
+                    return stem + ending
     return None
 
 
@@ -178,30 +210,154 @@ def _linked(run: list[Token]) -> list[list[Token]]:
     return groups
 
 
+def register_verbs(vocab: object, verbs: frozenset[str]) -> None:
+    """Make ``verbs`` the verb lexicon for docs that share ``vocab``."""
+    _VERB_LEXICONS[id(vocab)] = verbs
+
+
+def verbs_of(doc: Doc) -> frozenset[str]:
+    """The registered verb lexicon for ``doc``; empty when there is none."""
+    return _VERB_LEXICONS.get(id(doc.vocab), frozenset())
+
+
+_LABEL_MARKS = {":", "-", "\u2013", "\u2014"}
+
+
+def _opens_clause(tok: Token, sent: Span) -> bool:
+    """True for the first word of a sentence or list item, or the first word
+    after a label ("Purpose: Test ...", "`fn()` - Validates ...")."""
+    for prev in reversed(sent.doc[sent.start : tok.i]):
+        if prev.text in _LABEL_MARKS and not _is_joiner(prev):
+            return True
+        if is_word(prev) and any(c.isalnum() for c in prev.text):
+            return False  # "✅" is tagged ADJ, but it is a list marker
+    return True
+
+
+def _can_be_verb(tok: Token, verbs: frozenset[str]) -> bool:
+    """True when the word, or the word without a third-person -s, is a verb."""
+    lower = tok.lower_
+    forms = {lower, tok.lemma_.lower()}
+    if lower.endswith("s"):
+        forms.add(lower[:-1])
+        if lower.endswith("es"):
+            forms.add(lower[:-2])
+        if lower.endswith("ies"):
+            forms.add(lower[:-3] + "y")
+    return not forms.isdisjoint(verbs)
+
+
+def _verb_like(
+    tok: Token, group: list[Token], sent: Span, verbs: frozenset[str]
+) -> bool:
+    """A token in a noun run that is more likely a verb the tagger got wrong."""
+    # "Test line number accuracy", "Checks notebook file existence": a list
+    # item, sentence or labelled line that opens with a verb.
+    if tok.i == group[0].i and _opens_clause(tok, sent) and _can_be_verb(tok, verbs):
+        return True
+    # A plural rarely modifies a later noun, so it ends a subject and a verb
+    # follows: "toggle pins light/dark", "Claude Code loads ancestor files",
+    # "Students reference error hints".
+    last = tok.i == group[-1].i
+    if not last and tok.tag_ in _PLURAL_TAGS:
+        return True
+    # "The student progress bar resets after a logout": the parser made the
+    # verb the root of a noun phrase, in a sentence with no other verb.
+    return (
+        last
+        and tok.dep_ == "ROOT"
+        and tok.tag_ in _PLURAL_TAGS
+        and _can_be_verb(tok, verbs)
+        and group[0].i > sent.start
+        and group[0].nbor(-1).pos_ == "DET"
+        and not any(t.pos_ in {"VERB", "AUX"} for t in sent)
+    )
+
+
+def _trim_joiners(piece: list[Token]) -> list[Token]:
+    start, end = 0, len(piece)
+    while start < end and _is_joiner(piece[start]):
+        start += 1
+    while end > start and _is_joiner(piece[end - 1]):
+        end -= 1
+    return piece[start:end]
+
+
+def _split_at_verbs(
+    group: list[Token], sent: Span, verbs: frozenset[str]
+) -> list[list[Token]]:
+    """Drop verb-like tokens from a noun group and split it where they were."""
+    pieces: list[list[Token]] = [[]]
+    for tok in group:
+        if _verb_like(tok, group, sent, verbs):
+            pieces.append([])
+        else:
+            pieces[-1].append(tok)
+    return [p for p in map(_trim_joiners, pieces) if p]
+
+
+def stacks(block: Block, sent: Span, cfg: Config) -> Iterator[list[Token]]:
+    """Noun groups in a sentence that R2 should report."""
+    rule = cfg.noun_stack
+    verbs = verbs_of(sent.doc)
+    for run in noun_runs(block, sent):
+        for group in _linked(run):
+            if noun_count(group) < rule.min_nouns:
+                continue
+            for piece in _split_at_verbs(group, sent, verbs):
+                if noun_count(piece) < rule.min_nouns:
+                    continue
+                propn = sum(1 for t in piece if t.pos_ == "PROPN")
+                if rule.ignore_all_propn and propn == len(piece):
+                    continue
+                if propn > rule.max_proper_nouns:
+                    continue
+                yield piece
+
+
 def noun_stack(block: Block, doc: Doc, cfg: Config) -> Iterator[Finding]:
-    """R2: three or more nouns in a row that modify each other."""
+    """R2: four or more nouns in a row that modify each other."""
     rule = cfg.noun_stack
     if block.kind == "heading":
         return
     for sent in doc.sents:
-        for run in noun_runs(block, sent):
-            for group in _linked(run):
-                count = noun_count(group)
-                if count < rule.min_nouns:
-                    continue
-                if rule.ignore_all_propn and all(t.pos_ == "PROPN" for t in group):
-                    continue
-                strong = count >= rule.strong_nouns
-                phrase = "".join(t.text_with_ws for t in group).strip()
-                yield Finding(
-                    rule="R2",
-                    offset=group[0].idx,
-                    message=(
-                        f'Stack of {count} nouns ("{phrase}"); '
-                        "rephrase with a verb or preposition."
-                    ),
-                    severity="strong" if strong else "warning",
-                )
+        for group in stacks(block, sent, cfg):
+            count = noun_count(group)
+            strong = count >= rule.strong_nouns
+            phrase = "".join(t.text_with_ws for t in group).strip()
+            yield Finding(
+                rule="R2",
+                offset=group[0].idx,
+                message=(
+                    f'Stack of {count} nouns ("{phrase}"); '
+                    "rephrase with a verb or preposition."
+                ),
+                severity="strong" if strong else "warning",
+            )
+
+
+# Habit words that count only right before a verb: "successfully implemented"
+# is status-report filler, "runs successfully" is a plain claim.
+_BEFORE_VERB_ONLY = {"successfully"}
+
+
+def _opens_item(tok: Token, block: Block) -> bool:
+    """True for the first word of a list item or checklist line, or the first
+    word after its label ("5. **Test contrast**: Ensure ...")."""
+    sent = tok.sent
+    if not _opens_clause(tok, sent):
+        return False
+    return block.kind == "list" or sent[0].idx in block.breaks
+
+
+def _skip_habit(tok: Token, block: Block, cfg: Config) -> bool:
+    lower = tok.lower_
+    if lower in cfg.habit_words.ok_at_item_start and _opens_item(tok, block):
+        return True  # "- Ensure the build passes": the natural checklist verb
+    if lower in _BEFORE_VERB_ONLY:
+        nxt = tok.nbor(1) if tok.i + 1 < len(tok.doc) else None
+        return nxt is None or nxt.is_sent_start or nxt.pos_ not in {"VERB", "AUX"}
+    return False
 
 
 def habit_hits(block: Block, doc: Doc, cfg: Config) -> list[tuple[int, str]]:
@@ -212,6 +368,8 @@ def habit_hits(block: Block, doc: Doc, cfg: Config) -> list[tuple[int, str]]:
         if block.in_code(tok.idx, tok.idx + len(tok)):
             continue
         lower, lemma = tok.lower_, tok.lemma_.lower()
+        if (lower in singles or lemma in singles) and _skip_habit(tok, block, cfg):
+            continue
         if lower in singles:
             hits.append((tok.idx, lower))
         elif lemma in singles:
@@ -250,19 +408,56 @@ def is_nominal(tok: Token, cfg: Config) -> bool:
     return word.endswith(tuple(rule.suffixes))
 
 
+_COUNTED = {"a", "an", "one", "each", "every"}
+_TRANSFER_VERBS = {"provide", "give", "offer"}
+
+
+def _counted(noun: Token) -> bool:
+    """True for a counted noun, like "one placement" or "a fraction": a thing,
+    not an action."""
+    return any(
+        c.dep_ == "nummod" or (c.dep_ == "det" and c.lower_ in _COUNTED)
+        for c in noun.children
+    )
+
+
+def _supplies_a_thing(verb: Token, noun: Token) -> bool:
+    """True when the verb hands something over, so it is not a verb in disguise.
+
+    That means a recipient ("provides guidance to Claude Code", "give every failure
+    a representation") or a named deliverable ("provide image descriptions").
+    """
+    if any(c.dep_ == "dative" for c in verb.children):
+        return True
+    if any(
+        c.dep_ == "prep" and c.lower_ == "to" for c in (*verb.children, *noun.children)
+    ):
+        return True
+    return any(c.dep_ == "compound" for c in noun.children)
+
+
 def _hidden_verb(tok: Token, cfg: Config) -> Token | None:
     """The nominal object of a weak verb (``performs validation``), if any."""
-    if tok.lemma_.lower() not in cfg.nominalization.weak_verbs:
+    lemma = tok.lemma_.lower()
+    if lemma not in cfg.nominalization.weak_verbs:
         return None
+    verbs = verbs_of(tok.doc)
     for child in tok.children:
         if child.dep_ not in {"dobj", "attr", "nsubjpass"}:
             continue
         if not is_nominal(child, cfg):
             continue
+        # No verb behind the noun, so none is hidden: "are fractions of",
+        # "provides flexibility". Without a lexicon, trust the suffix.
+        if verbs and source_verb(child.lemma_, verbs) is None:
+            continue
         has_of = any(c.dep_ == "prep" and c.lower_ == "of" for c in child.children)
         # "is the implementation of X" is weak; "is a solution" is just a noun,
-        # and "has every reference" is plain possession.
-        if tok.lemma_.lower() in {"be", "have"} and not has_of:
+        # "is one placement of" counts a thing, and "has every reference" is
+        # plain possession.
+        if lemma in {"be", "have"} and (not has_of or _counted(child)):
+            continue
+        if lemma in _TRANSFER_VERBS and _supplies_a_thing(tok, child):
             continue
         return child
     return None

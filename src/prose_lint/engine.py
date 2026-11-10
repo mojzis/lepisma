@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from prose_lint import markdown
 from prose_lint.config import RULES, Config
 from prose_lint.models import FileResult, Warning
-from prose_lint.rules import RULE_FUNCS
+from prose_lint.rules import RULE_FUNCS, register_verbs
 
 if TYPE_CHECKING:
     from spacy.language import Language
@@ -27,6 +27,21 @@ def load_nlp() -> Language:
     return spacy.load(MODEL, disable=["ner"])
 
 
+@cache
+def verb_lexicon(nlp: Language) -> frozenset[str]:
+    """Base forms of English verbs, from the lemmatizer's WordNet index.
+
+    Empty when the pipeline has no rule lemmatizer. Rules use it to tell a verb
+    that the tagger called a noun ("Test line number accuracy") from a real noun.
+    """
+    if "lemmatizer" not in nlp.pipe_names:
+        return frozenset()
+    lookups = nlp.get_pipe("lemmatizer").lookups  # ty: ignore[unresolved-attribute]
+    if not lookups.has_table("lemma_index"):
+        return frozenset()
+    return frozenset(lookups.get_table("lemma_index").get("verb", ()))
+
+
 def parse_blocks(
     nlp: Language, blocks: Iterable[markdown.Block], batch_size: int | None = None
 ) -> Iterator[Doc]:
@@ -35,6 +50,8 @@ def parse_blocks(
     The parser keeps sentence starts that are set before it runs, so a line-per-item
     list splits into items even when the lines carry no end punctuation.
     """
+
+    register_verbs(nlp.vocab, verb_lexicon(nlp))
 
     def docs() -> Iterator[Doc]:
         for block in blocks:
