@@ -56,7 +56,7 @@ def test_slow_server_is_skipped(monkeypatch):
 
 def test_results_are_printed(repo, monkeypatch, capsys):
     reply = {
-        "version": client.__version__,
+        "version": client.build_id(),
         "results": [
             {
                 "path": "doc.md",
@@ -80,6 +80,22 @@ def test_results_are_printed(repo, monkeypatch, capsys):
     out = capsys.readouterr().out.splitlines()
     assert out[0] == 'doc.md:1:4 R3 Habit word "leverage"; try: use.'
     assert out[1].startswith("prose-lint: 1 warning(s) in 1 file(s)")
+
+
+def test_stale_server_is_replaced_and_skipped(monkeypatch):
+    calls = []
+
+    def fake_post(port, route, payload, timeout_s):
+        calls.append(route)
+        return {"version": "0.0.1+old", "results": []}
+
+    monkeypatch.setattr(client, "post", fake_post)
+    monkeypatch.setattr(
+        client, "spawn_server", lambda port, force: calls.append("spawn")
+    )
+    with pytest.raises(Skip, match="restarting"):
+        lint_via_server([("a.md", "x")], {}, 1, 0.3)
+    assert calls == ["/lint", "/shutdown", "spawn"]
 
 
 def test_spawn_has_cooldown(tmp_path, monkeypatch):

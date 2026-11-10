@@ -45,8 +45,8 @@ it runs even when the rest of the hook ends in `exec`.
 | `prose-lint serve` | Run the server in the foreground. `--idle-timeout 0` keeps it up. |
 | `prose-lint stop` | Stop the server, for example after an upgrade. |
 
-The hook also stops a server that runs an older version, so upgrades take effect on
-the next commit.
+The hook replaces a server that runs different code (a hash of the package source),
+so upgrades and local edits take effect on the next commit. That commit is skipped.
 
 Environment variables:
 

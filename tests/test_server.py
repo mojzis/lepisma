@@ -2,13 +2,12 @@ import threading
 
 from fastapi.testclient import TestClient
 
-from prose_lint import __version__
-from prose_lint.server import create_app
+from prose_lint.server import BUILD, create_app
 
 
 def test_health_reports_version():
     client = TestClient(create_app())
-    assert client.get("/health").json() == {"status": "ok", "version": __version__}
+    assert client.get("/health").json() == {"status": "ok", "version": BUILD}
 
 
 def test_lint_returns_results_and_uses_config():

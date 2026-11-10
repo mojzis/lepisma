@@ -13,11 +13,13 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from prose_lint import __version__
+from prose_lint import build_id
 from prose_lint.config import ConfigError, from_dict
 from prose_lint.engine import lint_text, load_nlp
 from prose_lint.models import FileResult
 
+# Computed once at startup: the code this process actually runs.
+BUILD = build_id()
 CACHE_SIZE = 512
 IDLE_CHECK_S = 60
 
@@ -68,7 +70,7 @@ def create_app(on_shutdown: threading.Event | None = None) -> FastAPI:
     @app.get("/health")
     def health() -> dict[str, str]:
         app.state.last_request = time.monotonic()
-        return {"status": "ok", "version": __version__}
+        return {"status": "ok", "version": BUILD}
 
     @app.post("/lint")
     def lint(req: LintRequest) -> dict[str, Any]:
@@ -87,7 +89,7 @@ def create_app(on_shutdown: threading.Event | None = None) -> FastAPI:
                 result = lint_text(f.path, f.text, cfg, nlp)
                 cache.put(key, result)
             results.append(result.to_dict())
-        return {"version": __version__, "results": results}
+        return {"version": BUILD, "results": results}
 
     @app.post("/shutdown")
     def shutdown() -> dict[str, str]:

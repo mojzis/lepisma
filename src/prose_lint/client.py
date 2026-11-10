@@ -19,7 +19,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from prose_lint import __version__
+from prose_lint import build_id
 from prose_lint.config import ConfigError, from_dict, load_raw
 from prose_lint.models import FileResult
 
@@ -98,10 +98,11 @@ def healthy(port: int, timeout_s: float = 0.2) -> bool:
         return False
 
 
-def spawn_server(port: int) -> bool:
+def spawn_server(port: int, *, force: bool = False) -> bool:
     """Start the server in the background. False when one was started recently."""
     stamp = cache_dir() / f"spawn-{port}"
-    if stamp.exists() and time.time() - stamp.stat().st_mtime < SPAWN_COOLDOWN_S:
+    recent = stamp.exists() and time.time() - stamp.stat().st_mtime < SPAWN_COOLDOWN_S
+    if recent and not force:
         return False
     stamp.touch()
     log = (cache_dir() / "server.log").open("ab")
@@ -141,11 +142,14 @@ def lint_via_server(
         raise Skip(f"server unreachable ({exc.reason})") from exc
     except (TimeoutError, OSError) as exc:
         raise Skip(f"server too slow (>{timeout_s * 1000:.0f} ms)") from exc
-    if reply.get("version") != __version__:
-        # A server from before an upgrade: stop it; the next commit starts a new one.
+    current = build_id()
+    if reply.get("version") != current:
+        # The server runs older code: its results may be wrong. Replace it and skip.
+        # The new server loads spaCy before it binds, so the old one is gone by then.
         with contextlib.suppress(OSError):
             post(port, "/shutdown", {}, 0.2)
-        note(f"restarting server {reply.get('version')} -> {__version__}")
+        spawn_server(port, force=True)
+        raise Skip(f"server ran {reply.get('version')}, restarting as {current}")
     return [FileResult.from_dict(r) for r in reply["results"]]
 
 
