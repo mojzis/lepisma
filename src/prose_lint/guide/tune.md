@@ -24,12 +24,15 @@ min_nouns = {{noun_stack.min_nouns}}
 strong_nouns = {{noun_stack.strong_nouns}}
 # a run of only proper nouns ("GitHub Actions CI") is a name
 ignore_all_propn = {{noun_stack.ignore_all_propn}}
+# more proper nouns than this and the run is a name ("Google Cloud Platform account")
+max_proper_nouns = {{noun_stack.max_proper_nouns}}
 
 [rules.habit-word]                 # R3
 # words = [...]                    # replaces the built-in list
 # extra_words = ["paradigm"]       # adds to it
 # suggestions = { paradigm = "model" }
 max_per_paragraph = {{habit_words.max_per_paragraph}}
+# ok_at_item_start = ["ensure"]   # fine as a list item's first word
 
 [rules.nominalization]             # R4
 # weak_verbs = [...]
