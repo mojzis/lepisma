@@ -184,8 +184,8 @@ It writes four files:
 
 It uses the same parser as the linter, and the R2 to R4 definitions of noun runs,
 nominalizations and habit words. Headings only name sections. List items under 4
-words are skipped. TextDescriptives computes readability, dependency distance,
-part-of-speech shares and repetition.
+words are skipped. Readability, dependency distance, part-of-speech shares and
+repetition use TextDescriptives' formulas, ported into `textstats.py`.
 
 ### As a library
 
