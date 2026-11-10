@@ -44,8 +44,7 @@ ty-find's binary is `tyf`.
 
 ### On every commit
 
-`prose-lint hook` runs first in `hooks/pre-commit`: it lints staged Markdown, warns only and never blocks.
-**madoqua** is the Python commit hook (`hooks/pre-commit`, `core.hooksPath=hooks`). It
+**madoqua** is the only commit hook (`hooks/pre-commit`, `core.hooksPath=hooks`). It
 acts on staged `.py`/`.pyi` files only — a commit without one is a silent no-op, not a
 verified hook.
 
@@ -84,11 +83,8 @@ Two changes from the hook this replaced:
 
 ```
 uv sync
-git config core.hooksPath hooks   # once; local config, not tracked
+uv run madoqua install    # once; core.hooksPath is local config, not tracked
 ```
-
-Don't run `madoqua install`: it overwrites `hooks/pre-commit` and drops the
-prose-lint line.
 
 ### Refreshing the toolbox
 

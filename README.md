@@ -25,11 +25,32 @@ docs/setup.md:18:5 R4 "performs validation" hides the verb; try "validate".
 
 ## Install
 
+Add it to the repo's dev dependencies, so the hook finds it in `.venv`:
+
 ```
-uv tool install git+https://github.com/mojzis/prose-linter
-cd your-repo
-prose-lint install-hook          # adds one warn-only line to .git/hooks/pre-commit
+uv add --dev "prose-lint @ git+https://github.com/mojzis/prose-linter"
 cp /path/to/prose-linter/prose-lint.toml .   # optional; every key has a default
+```
+
+### With madoqua (the main path)
+
+Add a check step that wakes on staged Markdown. madoqua appends the matched files:
+
+```toml
+[tool.madoqua]
+extend_check = [
+  { name = "prose-lint", cmd = "prose-lint hook", on = ["*.md", "*.markdown"], timeout_s = 5 },
+]
+```
+
+**Gap:** madoqua prints a step's output only when the step fails, and
+`prose-lint hook` always exits 0. So the warnings stay hidden until madoqua gets
+a warn-only step mode that prints output without blocking.
+
+### Without madoqua
+
+```
+prose-lint install-hook   # adds one warn-only line to the pre-commit hook
 ```
 
 `install-hook` follows `core.hooksPath`. It puts its line right after the shebang, so
@@ -41,12 +62,13 @@ it runs even when the rest of the hook ends in `exec`.
 | --- | --- |
 | `prose-lint check PATH...` | Lint files or folders in-process, no server. `--format json`, `--strict` exits 1 on warnings. |
 | `prose-lint stats PATH...` | Warnings per 1,000 words per file and rule, one table per path. |
-| `prose-lint hook` | What the git hook runs. `--wait 10` waits for the server instead of skipping. |
+| `prose-lint hook [FILE...]` | What the git hook runs. Lints the given files, or asks git for the staged docs. `--wait 10` waits for the server instead of skipping. |
 | `prose-lint serve` | Run the server in the foreground. `--idle-timeout 0` keeps it up. |
 | `prose-lint stop` | Stop the server, for example after an upgrade. |
 
-The hook replaces a server that runs different code (a hash of the package source),
-so upgrades and local edits take effect on the next commit. That commit is skipped.
+The hook replaces a server whose code differs from its own. It compares a hash of the
+package source, so upgrades and local edits take effect. The commit that finds the
+mismatch is skipped.
 
 Environment variables:
 
@@ -155,6 +177,6 @@ Current numbers (warnings per 1,000 words):
 
 ```
 uv sync
-git config core.hooksPath hooks   # prose-lint, then madoqua
+uv run madoqua install
 uv run poe check
 ```

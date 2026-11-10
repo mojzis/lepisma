@@ -39,6 +39,17 @@ def test_no_server_starts_one_and_skips_quietly(repo, monkeypatch, capsys):
     assert len(spawned) == 1
 
 
+def test_explicit_files_skip_git_discovery(repo, monkeypatch):
+    sent = []
+    monkeypatch.setattr(client, "staged_files", lambda *a: pytest.fail("asked git"))
+    monkeypatch.setattr(
+        client, "lint_via_server", lambda docs, *a: sent.extend(docs) or []
+    )
+    (repo / "notes.md").write_text("Unstaged.\n")
+    assert run_hook(["doc.md", "notes.md", "code.py"]) == 0
+    assert sent == [("doc.md", "We leverage it.\n"), ("notes.md", "Unstaged.\n")]
+
+
 def test_disable_env_skips_everything(repo, monkeypatch):
     monkeypatch.setenv("PROSE_LINT_DISABLE", "1")
     monkeypatch.setattr(client, "staged_files", lambda *a: pytest.fail("ran"))

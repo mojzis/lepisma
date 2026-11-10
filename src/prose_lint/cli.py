@@ -71,7 +71,7 @@ def cmd_hook(args: argparse.Namespace) -> int:
     """Pre-commit hook: lint staged docs via the server; never fails."""
     from prose_lint.client import run_hook  # noqa: PLC0415
 
-    return run_hook(fmt=args.format, wait_s=args.wait)
+    return run_hook(args.files, fmt=args.format, wait_s=args.wait)
 
 
 def cmd_serve(args: argparse.Namespace) -> int:
@@ -157,6 +157,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_stats)
 
     p = sub.add_parser("hook", help="pre-commit hook: lint staged docs via the server")
+    p.add_argument(
+        "files",
+        nargs="*",
+        help="staged docs to lint (madoqua passes these); default: ask git",
+    )
     p.add_argument("--format", choices=["text", "json"], default="text")
     p.add_argument(
         "--wait",

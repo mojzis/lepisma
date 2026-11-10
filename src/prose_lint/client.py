@@ -166,23 +166,38 @@ def wait_for_server(port: int, wait_s: float) -> None:
     raise Skip(f"server did not start within {wait_s:.0f} s")
 
 
-def run_hook(*, fmt: str = "text", wait_s: float = 0.0) -> int:
-    """Entry point for the pre-commit hook. Always returns 0."""
+def read_staged(root: Path, path: str) -> str:
+    """Staged text of ``path``; the working copy when it is not in the index."""
+    try:
+        return staged_text(root, path)
+    except subprocess.CalledProcessError:
+        return (root / path).read_text(encoding="utf-8")
+
+
+def run_hook(
+    files: list[str] | None = None, *, fmt: str = "text", wait_s: float = 0.0
+) -> int:
+    """Entry point for the pre-commit hook. Always returns 0.
+
+    ``files`` are paths relative to the repo root, as madoqua passes them. Without
+    them the hook asks git for the staged docs itself.
+    """
     if os.environ.get("PROSE_LINT_DISABLE") == "1":
         return 0
     try:
         root = Path(_git("rev-parse", "--show-toplevel").strip())
         raw_cfg = load_raw(root)
         cfg = from_dict(raw_cfg)
-        paths = [p for p in staged_files(root, cfg.extensions) if not cfg.is_ignored(p)]
+        candidates = files if files else staged_files(root, cfg.extensions)
+        paths = [p for p in candidates if not cfg.is_ignored(p)]
         if not paths:
             return 0
         port = int(os.environ.get("PROSE_LINT_PORT", cfg.server.port))
         timeout_ms = int(os.environ.get("PROSE_LINT_TIMEOUT_MS", cfg.server.timeout_ms))
         if wait_s > 0:
             wait_for_server(port, wait_s)
-        files = [(p, staged_text(root, p)) for p in paths]
-        results = lint_via_server(files, raw_cfg, port, timeout_ms / 1000)
+        docs = [(p, read_staged(root, p)) for p in paths]
+        results = lint_via_server(docs, raw_cfg, port, timeout_ms / 1000)
     except Skip as exc:
         note(f"skipped: {exc}")
         return 0
