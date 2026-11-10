@@ -7,7 +7,7 @@ of text written by Claude. Warnings go back to Claude so it can rewrite the text
 Agents: start with the built-in guide. It picks setup or triage from the repo state.
 
 ```
-uvx --from git+https://github.com/mojzis/prose-linter prose-lint guide
+uvx prose-lint@latest guide
 ```
 
 Sample output:
@@ -36,9 +36,26 @@ docs/setup.md:18:5 R4 "performs validation" hides the verb; try "validate".
 Add it to the repo's dev dependencies, so the hook finds it in `.venv`:
 
 ```
-uv add --dev "prose-lint @ git+https://github.com/mojzis/prose-linter"
+uv add --dev prose-lint
 cp /path/to/prose-linter/prose-lint.toml .   # optional; every key has a default
 ```
+
+### The spaCy model
+
+spaCy models are not on PyPI, so `en_core_web_sm` 3.8.0 is not a dependency. On
+first use, `check`, `stats`, `measure` and the server download the wheel once
+(~13 MB) and check its SHA-256. They unpack it to
+`~/.cache/prose-lint/models/`, outside any virtualenv, so every `uvx` run and
+venv shares one copy. This needs no pip. The hook client never downloads; it
+skips commits while the server starts.
+
+Offline, install the model into the environment instead:
+
+```
+uv pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
+```
+
+Or set `PROSE_LINT_MODEL_WHEEL` to a local copy (or mirror URL) of that wheel.
 
 ### With madoqua (the main path)
 
@@ -86,6 +103,7 @@ Environment variables:
 - `PROSE_LINT_VERBOSE=1` prints why the hook skipped.
 - `PROSE_LINT_DISABLE=1` turns the hook off.
 - `PROSE_LINT_PORT` and `PROSE_LINT_TIMEOUT_MS` override the config.
+- `PROSE_LINT_MODEL_WHEEL` is a path or URL to fetch the spaCy model wheel from.
 
 The server log is in `~/.cache/prose-lint/server.log`.
 
@@ -143,7 +161,7 @@ Details:
 hardest parts are. It never edits a doc.
 
 ```
-uv add --dev "prose-lint[measure] @ git+https://github.com/mojzis/prose-linter"
+uv add --dev "prose-lint[measure]"
 uv run prose-lint measure docs/ --out stats/
 ```
 
@@ -258,3 +276,12 @@ uv sync
 uv run madoqua install
 uv run poe check
 ```
+
+### Releasing
+
+Pushing a `vX.Y.Z` tag runs `.github/workflows/release.yml`. It builds, runs
+`twine check`, publishes to PyPI by trusted publishing and creates a GitHub
+release.
+
+1. Bump `version` in `pyproject.toml` and commit.
+2. `git tag vX.Y.Z` (the same version) and `git push origin vX.Y.Z`.
