@@ -23,7 +23,7 @@ lepisma = "lepisma.cli:main"
 # `lepisma measure` and lepisma.measure; the hook and lint path never need them.
 measure = [
     "polars>=2.1.0",
-    "textdescriptives>=2.8.2",
+    "pyphen>=0.11",
 ]
 
 [build-system]

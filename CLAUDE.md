@@ -17,8 +17,11 @@ using the CLI.
   `report.py`, which it imports.
 - `measure.py` computes readability stats for whole docs as Polars tables; it is
   the library API (`Measurer`). `measure_report.py` builds the scores and
-  `report.md`. Both need the `measure` extra (TextDescriptives, Polars), so keep
+  `report.md`. Both need the `measure` extra (Polars, Pyphen), so keep
   them off the lint and hook path.
+- `textstats.py` holds the readability, dependency distance, POS and repetition
+  formulas, ported from TextDescriptives (which pins numpy<2). Keep them matching
+  it so old `measure` runs stay comparable.
 - `spacy_model.py` finds the spaCy model. An installed `en_core_web_sm` wins (the
   dev group has it); otherwise it downloads the hash-pinned wheel once into
   `~/.cache/lepisma/models/`. The model is not a runtime dependency because PyPI

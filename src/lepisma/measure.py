@@ -9,14 +9,13 @@ Usable as a library, for example from a docs server::
     result.files.row(0, named=True)            # one dict of file metrics
     result.sentences.sort("words", descending=True).head(5)
 
-Needs the ``measure`` extra (TextDescriptives and Polars). It reuses the lint
+Needs the ``measure`` extra (Polars and Pyphen). It reuses the lint
 parser and the R2 to R4 helpers, so the numbers match what the linter warns on.
 """
 
 from __future__ import annotations
 
 import re
-import warnings
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -29,9 +28,16 @@ from lepisma import markdown
 from lepisma.config import Config
 from lepisma.engine import load_nlp, parse_blocks
 from lepisma.rules import habit_hits, is_nominal, is_word, noun_count, noun_runs
+from lepisma.textstats import (
+    dependency_distance,
+    doc_dependency_distance,
+    duplicate_ngram_chr_fraction,
+    pos_proportions,
+    readability,
+)
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Mapping
+    from collections.abc import Iterable, Mapping
 
     from spacy.language import Language
     from spacy.tokens import Span
@@ -78,18 +84,6 @@ class Measurement:
         self.files.write_parquet(out_dir / "files.parquet")
 
 
-def _td_components(nlp: Language) -> list[Callable[[Doc], Doc]]:
-    """TextDescriptives components, called directly on combined docs."""
-    from textdescriptives.components.quality import Quality  # noqa: PLC0415
-
-    names = ("readability", "dependency_distance", "pos_proportions")
-    comps = [nlp.create_pipe(f"textdescriptives/{n}") for n in names]
-    # The quality factory fails confection's config check (lists vs tuples) in
-    # textdescriptives 2.8.4, so build the component by hand with its defaults.
-    comps.append(Quality(nlp, "textdescriptives/quality", (2, 4), 3, (5, 10), None))
-    return comps
-
-
 class Measurer:
     """Holds the loaded model. Reuse one instance across calls."""
 
@@ -97,8 +91,6 @@ class Measurer:
         self.cfg = cfg or Config()
         self.nlp = nlp or load_nlp()
         self.habit_words = tuple(self.cfg.habit_words.words)
-        self._td = _td_components(self.nlp)
-        self._dep_distance = self._td[1]
 
     def measure(self, docs: Mapping[str, str]) -> Measurement:
         """Measure ``{path: markdown}``."""
@@ -191,7 +183,7 @@ class Measurer:
                     pending.append((sec, block))
         parsed = parse_blocks(self.nlp, (b for _, b in pending), batch_size=256)
         for (sec, block), doc in zip(pending, parsed, strict=True):
-            sec.blocks.append((block, self._dep_distance(doc)))
+            sec.blocks.append((block, doc))
         return sections
 
     # -- per sentence ------------------------------------------------------------
@@ -232,7 +224,6 @@ class Measurer:
             in_sent = Counter(
                 w for off, w in hits if sent.start_char <= off < sent.end_char
             )
-            dd = sent._.dependency_distance or {}
             yield {
                 "path": sec.path,
                 "section": sec.index,
@@ -241,7 +232,7 @@ class Measurer:
                 "text": text,
                 "source": _source(sec.lines, block, first.idx, words[-1]),
                 "words": len(words),
-                "dependency_distance": dd.get("dependency_distance_mean"),
+                "dependency_distance": dependency_distance(sent),
                 "main_verb_index": _main_verb_index(sent, words),
                 "max_noun_run": _max_noun_run(block, sent),
                 "passives": sum(1 for t in sent if t.dep_ == "auxpass"),
@@ -256,26 +247,17 @@ class Measurer:
     # -- per section / file ------------------------------------------------------
 
     def _doc_metrics(self, blocks: list[tuple[Block, Doc]]) -> dict[str, Any]:
-        """TextDescriptives metrics for blocks joined into one doc."""
+        """Readability, syntax and repetition metrics for blocks joined into one doc."""
         doc = Doc.from_docs([d for _, d in blocks])
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            for comp in self._td:
-                doc = comp(doc)
-        read = doc._.readability
-        pos = doc._.pos_proportions
-        quality = doc._.quality
-        noun, verb = pos.get("pos_prop_NOUN", 0.0), pos.get("pos_prop_VERB", 0.0)
+        read = readability(doc)
+        pos = pos_proportions(doc, POS_TAGS)
+        noun, verb = pos["NOUN"], pos["VERB"]
         return {
-            **{k: read.get(k) for k in READABILITY},
-            "dependency_distance_mean": doc._.dependency_distance[
-                "dependency_distance_mean"
-            ],
-            **{f"pos_{t.lower()}": pos.get(f"pos_prop_{t}", 0.0) for t in POS_TAGS},
+            **{k: read[k] for k in READABILITY},
+            "dependency_distance_mean": doc_dependency_distance(doc),
+            **{f"pos_{t.lower()}": pos[t] for t in POS_TAGS},
             "noun_verb_ratio": noun / verb if verb else None,
-            "duplicate_5gram_chr_fraction": quality.duplicate_ngram_chr_fraction[
-                "5"
-            ].value,
+            "duplicate_5gram_chr_fraction": duplicate_ngram_chr_fraction(doc, 5),
         }
 
     def _aggregate(self, sentences: pl.DataFrame, keys: list[str]) -> pl.DataFrame:

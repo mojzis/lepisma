@@ -291,14 +291,14 @@ def render(m: Measurement, min_words: int = 100) -> str:
         '("function", "document").\n'
         '- **Passives** count `auxpass` tokens. Reduced passives ("the file '
         'written by X") and get-passives are missed, so these are lower bounds.\n'
-        f"- **Repetition** (`duplicate_5gram_chr_fraction`, TextDescriptives) is "
+        f"- **Repetition** (`duplicate_5gram_chr_fraction`) is "
         f"above zero in only {nonzero} of {m.sections.height} sections. It needs "
         "long text to say anything; use it at file level only.\n"
         "- **Sentence splitting** follows spaCy. List items and table-like lines "
         'without end punctuation can merge into one long "sentence"; check the top '
         "sentences before trusting `share_over_35`.\n"
         "- **Left out:** SMOG (needs 30+ sentences per unit, most sections are "
-        "shorter) and TextDescriptives' word-level coherence metrics (need a model "
+        "shorter) and word-level coherence metrics (need a model "
         "with word vectors).\n"
     )
     return "\n".join(out)
