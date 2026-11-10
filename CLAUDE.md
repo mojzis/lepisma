@@ -9,10 +9,15 @@ README.md for the design, rules and roadmap.
   line and column. It drops code, tables, front matter and HTML. Inline code becomes
   the `CODE` placeholder.
 - `rules.py` holds R1 to R4. Each is `(block, doc, cfg) -> Iterator[Finding]`.
-- `engine.py` runs spaCy and the rules. Only it and `server.py` import spaCy.
+- `engine.py` runs spaCy and the rules. Only it, `server.py` and `measure.py` import
+  spaCy.
 - `client.py` is the commit hook client. **Stdlib only**; it never raises and always
   exits 0. Keep spaCy and FastAPI out of it, and out of `config.py`, `models.py` and
   `report.py`, which it imports.
+- `measure.py` computes readability stats for whole docs as Polars tables; it is
+  the library API (`Measurer`). `measure_report.py` builds the scores and
+  `report.md`. Both need the `measure` extra (TextDescriptives, Polars), so keep
+  them off the lint and hook path.
 - `server.py` is the FastAPI server on 127.0.0.1:8737, with an LRU cache and idle exit.
 - `corpus/` is the baseline test set. `tests/test_corpus.py` checks that bad docs score
   far worse than good ones.

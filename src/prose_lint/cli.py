@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from prose_lint.config import Config
     from prose_lint.models import FileResult
 
 HOOK_MARKER = "prose-lint hook"
@@ -26,13 +27,9 @@ def _walk(directory: Path, extensions: list[str]) -> list[Path]:
     )
 
 
-def _lint_paths(paths: list[str], *, use_ignore: bool = True) -> list[FileResult]:
-    """Lint files and folders. Named files are always linted; ``ignore`` globs
+def _collect(paths: list[str], cfg: Config, *, use_ignore: bool) -> list[Path]:
+    """Files named in ``paths`` plus docs found in named folders. ``ignore`` globs
     only filter files found by walking a folder."""
-    from prose_lint.config import from_dict, load_raw  # noqa: PLC0415
-    from prose_lint.engine import lint_text  # noqa: PLC0415
-
-    cfg = from_dict(load_raw(Path.cwd()))
     files: list[Path] = []
     for raw in paths:
         p = Path(raw)
@@ -45,6 +42,16 @@ def _lint_paths(paths: list[str], *, use_ignore: bool = True) -> list[FileResult
             files.append(p)
         else:
             print(f"prose-lint: no such file: {raw}", file=sys.stderr)  # noqa: T201
+    return files
+
+
+def _lint_paths(paths: list[str], *, use_ignore: bool = True) -> list[FileResult]:
+    """Lint files and folders."""
+    from prose_lint.config import from_dict, load_raw  # noqa: PLC0415
+    from prose_lint.engine import lint_text  # noqa: PLC0415
+
+    cfg = from_dict(load_raw(Path.cwd()))
+    files = _collect(paths, cfg, use_ignore=use_ignore)
     return [lint_text(str(f), f.read_text(encoding="utf-8"), cfg) for f in files]
 
 
@@ -64,6 +71,34 @@ def cmd_stats(args: argparse.Namespace) -> int:
     from prose_lint.report import print_stats  # noqa: PLC0415
 
     print_stats({p: _lint_paths([p], use_ignore=False) for p in args.paths})
+    return 0
+
+
+def cmd_measure(args: argparse.Namespace) -> int:
+    """Readability stats for whole docs: Parquet tables plus report.md."""
+    from prose_lint.config import from_dict, load_raw  # noqa: PLC0415
+
+    try:
+        from prose_lint.measure import Measurer  # noqa: PLC0415
+        from prose_lint.measure_report import print_summary, render  # noqa: PLC0415
+    except ImportError as exc:
+        print(  # noqa: T201
+            f"prose-lint: measure needs the 'measure' extra ({exc.name} missing); "
+            'install "prose-lint[measure]"',
+            file=sys.stderr,
+        )
+        return 2
+    cfg = from_dict(load_raw(Path.cwd()))
+    files = _collect(args.paths, cfg, use_ignore=not args.no_ignore)
+    if not files:
+        print("prose-lint: no docs found", file=sys.stderr)  # noqa: T201
+        return 1
+    result = Measurer(cfg).measure_paths(files)
+    out = Path(args.out)
+    result.write(out)
+    (out / "report.md").write_text(render(result, args.min_words), encoding="utf-8")
+    print_summary(result, args.min_words, sys.stdout)
+    print(f"wrote {out}/report.md and {out}/*.parquet")  # noqa: T201
     return 0
 
 
@@ -155,6 +190,22 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("stats", help="warnings per 1,000 words; one group per path")
     p.add_argument("paths", nargs="+")
     p.set_defaults(func=cmd_stats)
+
+    p = sub.add_parser(
+        "measure", help="readability stats for whole docs (needs the measure extra)"
+    )
+    p.add_argument("paths", nargs="+")
+    p.add_argument("--out", default="stats", help="output folder (default: stats)")
+    p.add_argument(
+        "--min-words",
+        type=int,
+        default=100,
+        help="smallest section or file to rank in the report (default: 100)",
+    )
+    p.add_argument(
+        "--no-ignore", action="store_true", help="also measure files matching ignore"
+    )
+    p.set_defaults(func=cmd_measure)
 
     p = sub.add_parser("hook", help="pre-commit hook: lint staged docs via the server")
     p.add_argument(

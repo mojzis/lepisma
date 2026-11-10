@@ -93,7 +93,7 @@ def verb_form(noun: str) -> str | None:
     return None
 
 
-def _is_word(tok: Token) -> bool:
+def is_word(tok: Token) -> bool:
     return not (tok.is_punct or tok.is_space or tok.pos_ in {"SYM", "X", "SPACE"})
 
 
@@ -103,7 +103,7 @@ def long_sentence(block: Block, doc: Doc, cfg: Config) -> Iterator[Finding]:
     if block.kind == "heading":
         return
     for sent in doc.sents:
-        words = sum(1 for tok in sent if _is_word(tok))
+        words = sum(1 for tok in sent if is_word(tok))
         if words <= rule.max_words:
             continue
         strong = words > rule.strong_words
@@ -136,7 +136,7 @@ def _is_noun(block: Block, tok: Token) -> bool:
     )
 
 
-def _noun_runs(block: Block, sent: Span) -> Iterator[list[Token]]:
+def noun_runs(block: Block, sent: Span) -> Iterator[list[Token]]:
     run: list[Token] = []
     for tok in sent:
         if _is_noun(block, tok):
@@ -152,7 +152,7 @@ def _noun_runs(block: Block, sent: Span) -> Iterator[list[Token]]:
         yield run
 
 
-def _noun_count(group: list[Token]) -> int:
+def noun_count(group: list[Token]) -> int:
     """Nouns in a group, counting "ty-find" as one."""
     return sum(
         1
@@ -184,9 +184,9 @@ def noun_stack(block: Block, doc: Doc, cfg: Config) -> Iterator[Finding]:
     if block.kind == "heading":
         return
     for sent in doc.sents:
-        for run in _noun_runs(block, sent):
+        for run in noun_runs(block, sent):
             for group in _linked(run):
-                count = _noun_count(group)
+                count = noun_count(group)
                 if count < rule.min_nouns:
                     continue
                 if rule.ignore_all_propn and all(t.pos_ == "PROPN" for t in group):
@@ -204,7 +204,7 @@ def noun_stack(block: Block, doc: Doc, cfg: Config) -> Iterator[Finding]:
                 )
 
 
-def _habit_hits(block: Block, doc: Doc, cfg: Config) -> list[tuple[int, str]]:
+def habit_hits(block: Block, doc: Doc, cfg: Config) -> list[tuple[int, str]]:
     words = cfg.habit_words.words
     singles = {w for w in words if " " not in w}
     hits: list[tuple[int, str]] = []
@@ -226,7 +226,7 @@ def _habit_hits(block: Block, doc: Doc, cfg: Config) -> list[tuple[int, str]]:
 def habit_words(block: Block, doc: Doc, cfg: Config) -> Iterator[Finding]:
     """R3: words and phrases Claude overuses."""
     rule = cfg.habit_words
-    hits = _habit_hits(block, doc, cfg)
+    hits = habit_hits(block, doc, cfg)
     strong = len(hits) > rule.max_per_paragraph
     for offset, word in hits:
         hint = rule.words.get(word, "")
@@ -240,7 +240,7 @@ def habit_words(block: Block, doc: Doc, cfg: Config) -> Iterator[Finding]:
         )
 
 
-def _is_nominal(tok: Token, cfg: Config) -> bool:
+def is_nominal(tok: Token, cfg: Config) -> bool:
     rule = cfg.nominalization
     if tok.pos_ != "NOUN":
         return False
@@ -257,7 +257,7 @@ def _hidden_verb(tok: Token, cfg: Config) -> Token | None:
     for child in tok.children:
         if child.dep_ not in {"dobj", "attr", "nsubjpass"}:
             continue
-        if not _is_nominal(child, cfg):
+        if not is_nominal(child, cfg):
             continue
         has_of = any(c.dep_ == "prep" and c.lower_ == "of" for c in child.children)
         # "is the implementation of X" is weak; "is a solution" is just a noun,
@@ -274,7 +274,7 @@ def nominalization(block: Block, doc: Doc, cfg: Config) -> Iterator[Finding]:
     if block.kind == "heading":
         return
     for sent in doc.sents:
-        nominals = [t for t in sent if _is_nominal(t, cfg)]
+        nominals = [t for t in sent if is_nominal(t, cfg)]
         dense = len(nominals) >= rule.max_per_sentence
         pairs = [(t, n) for t in sent if (n := _hidden_verb(t, cfg)) is not None]
         for verb, noun in pairs:

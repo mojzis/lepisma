@@ -50,6 +50,7 @@ class Block:
 
     kind: BlockKind
     text: str = ""
+    level: int = 0  # heading level 1-6; 0 for other blocks
     # origins[i] is the (line, col) in the source of text[i]; both 1-based.
     origins: list[tuple[int, int]] = field(default_factory=list)
     code_spans: list[tuple[int, int]] = field(default_factory=list)
@@ -243,6 +244,7 @@ def parse(source: str) -> list[Block]:  # noqa: PLR0912, PLR0915 - one scanner l
             and len(current.raw) == 1
         ):
             current.kind = "heading"
+            current.level = 1 if line.strip().startswith("=") else 2
             close()
             continue
         if _HR.match(line):
@@ -251,6 +253,7 @@ def parse(source: str) -> list[Block]:  # noqa: PLR0912, PLR0915 - one scanner l
 
         if m := _HEADING.match(line):
             current = blk = start("heading")
+            blk.level = len(m.group(1))
             blk.add_line(m.group(2), lineno, m.start(2))
             close()
             continue

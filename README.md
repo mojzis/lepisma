@@ -63,6 +63,7 @@ it runs even when the rest of the hook ends in `exec`.
 | --- | --- |
 | `prose-lint check PATH...` | Lint files or folders in-process, no server. `--format json`, `--strict` exits 1 on warnings. |
 | `prose-lint stats PATH...` | Warnings per 1,000 words per file and rule, one table per path. |
+| `prose-lint measure PATH...` | Readability stats for whole docs. Writes Parquet tables and `report.md` to `--out` (default `stats/`). Needs the `measure` extra. |
 | `prose-lint hook [FILE...]` | What the git hook runs. Lints the given files, or asks git for the staged docs. `--wait 10` waits for the server instead of skipping. |
 | `prose-lint serve` | Run the server in the foreground. `--idle-timeout 0` keeps it up. |
 | `prose-lint stop` | Stop the server, for example after an upgrade. |
@@ -105,6 +106,52 @@ Details:
 - **R4** counts nouns that end in -tion, -sion, -ment, -ance, -ence or -ity. A stoplist
   removes concrete words like "function", "document" and "instance". For "is", the noun
   must take "of", as in "is the implementation of".
+
+## Measuring whole docs
+
+`prose-lint measure` reports how hard a set of docs is to read, and where the
+hardest parts are. It never edits a doc.
+
+```
+uv add --dev "prose-lint[measure] @ git+https://github.com/mojzis/prose-linter"
+uv run prose-lint measure docs/ --out stats/
+```
+
+It writes four files:
+
+- `sentences.parquet`: one row per sentence, with file, line, column, section and
+  source text. It counts words, passives, commas, parentheses, dashes,
+  nominalizations and habit words. It also gives mean dependency distance, main
+  verb position and the longest noun run.
+- `sections.parquet` and `files.parquet`: sentence length as mean, median, p90 and
+  max, and the share of sentences over 25 and 35 words. Readability as Flesch
+  reading ease, Flesch-Kincaid grade, Gunning Fog and LIX. Part-of-speech shares and
+  the noun-to-verb ratio. Nominalizations per 100 words, repeated 5-grams, and habit
+  words per 1,000 words.
+- `report.md`: medians and p90s, the 15 hardest files and sections, the 30 hardest
+  sentences, and which metrics spread enough to make good lint thresholds.
+
+It uses the same parser as the linter, and the R2 to R4 definitions of noun runs,
+nominalizations and habit words. Headings only name sections. List items under 4
+words are skipped. TextDescriptives computes readability, dependency distance,
+part-of-speech shares and repetition.
+
+### As a library
+
+A docs server can load the model once and measure pages on request:
+
+```python
+from prose_lint.measure import Measurer
+from prose_lint.measure_report import render
+
+measurer = Measurer()  # loads spaCy once; reuse it
+result = measurer.measure({"guide.md": text})  # {path: markdown}
+result.files.row(0, named=True)  # dict of file metrics
+result.sentences.sort("words", descending=True).head(5)
+render(result, min_words=100)  # the report as Markdown
+```
+
+`result.sentences`, `.sections` and `.files` are Polars data frames.
 
 ## Configuration
 
