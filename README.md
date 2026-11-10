@@ -45,7 +45,8 @@ extend_check = [
 
 **Gap:** madoqua prints a step's output only when the step fails, and
 `prose-lint hook` always exits 0. So the warnings stay hidden until madoqua gets
-a warn-only step mode that prints output without blocking.
+a warn-only step mode that prints output without blocking
+([madoqua#19](https://github.com/mojzis/madoqua/issues/19)).
 
 ### Without madoqua
 
