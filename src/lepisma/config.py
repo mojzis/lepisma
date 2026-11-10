@@ -49,6 +49,25 @@ DEFAULT_WEAK_VERBS = [
     "undertake",
 ]
 
+# Openers of a paragraph's last sentence that only restate the paragraph.
+DEFAULT_SUMMARY_OPENERS = [
+    "in summary",
+    "in short",
+    "in conclusion",
+    "to summarize",
+    "to sum up",
+    "overall",
+    "ultimately",
+    "all in all",
+    "this ensures",
+    "this allows",
+    "this enables",
+    "this means",
+    "this makes",
+    "this way",
+    "together, these",
+]
+
 DEFAULT_NOMINAL_SUFFIXES = ["tion", "sion", "ment", "ance", "ence", "ity"]
 
 # Words with a nominal suffix that read as concrete things, not hidden verbs.
@@ -133,6 +152,33 @@ class Nominalization:
 
 
 @dataclass(slots=True)
+class LateVerb:
+    """R5 settings."""
+
+    enabled: bool = True
+    # Words before the main verb (or its first auxiliary).
+    max_words_before: int = 14
+    strong_words_before: int = 20
+
+
+@dataclass(slots=True)
+class VagueThis:
+    """R6 settings."""
+
+    enabled: bool = True
+    # Demonstratives that warn when they stand alone as a sentence's subject.
+    words: list[str] = field(default_factory=lambda: ["this", "these"])
+
+
+@dataclass(slots=True)
+class TidySummary:
+    """R7 settings."""
+
+    enabled: bool = True
+    openers: list[str] = field(default_factory=lambda: list(DEFAULT_SUMMARY_OPENERS))
+
+
+@dataclass(slots=True)
 class Server:
     """Local spaCy server settings."""
 
@@ -150,6 +196,9 @@ class Config:
     noun_stack: NounStack = field(default_factory=NounStack)
     habit_words: HabitWords = field(default_factory=HabitWords)
     nominalization: Nominalization = field(default_factory=Nominalization)
+    late_verb: LateVerb = field(default_factory=LateVerb)
+    vague_this: VagueThis = field(default_factory=VagueThis)
+    tidy_summary: TidySummary = field(default_factory=TidySummary)
     server: Server = field(default_factory=Server)
 
     def is_ignored(self, path: str) -> bool:
@@ -166,6 +215,9 @@ RULES: dict[str, tuple[str, str]] = {
     "R2": ("noun-stack", "noun_stack"),
     "R3": ("habit-word", "habit_words"),
     "R4": ("nominalization", "nominalization"),
+    "R5": ("late-verb", "late_verb"),
+    "R6": ("vague-this", "vague_this"),
+    "R7": ("tidy-summary", "tidy_summary"),
 }
 
 

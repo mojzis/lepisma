@@ -1,6 +1,9 @@
+import re
+from pathlib import Path
+
 import pytest
 
-from lepisma.config import Config, from_dict
+from lepisma.config import RULES, Config, from_dict
 from lepisma.rules import verb_form
 
 
@@ -287,3 +290,78 @@ def test_habit_words_catch_filler(lint, source, word):
 def test_item_start_exemption_is_configurable(lint):
     cfg = from_dict({"rules": {"habit-word": {"ok_at_item_start": []}}})
     assert "R3" in rules(lint("- Ensure the build passes\n", cfg))
+
+
+KNOWN_BAD = Path(__file__).parent / "fixtures" / "known-bad.md"
+
+
+def _known_bad_samples() -> list[tuple[str, str]]:
+    """(rule id, sample) pairs: each sample follows a ``<!-- Rn -->`` marker."""
+    parts = re.split(r"<!-- (R\d+) -->\n", KNOWN_BAD.read_text())
+    return list(zip(parts[1::2], (p.strip() for p in parts[2::2]), strict=True))
+
+
+def test_known_bad_file_covers_every_rule():
+    assert sorted(rid for rid, _ in _known_bad_samples()) == sorted(RULES)
+
+
+@pytest.mark.parametrize(("rid", "sample"), _known_bad_samples())
+def test_each_rule_fires_on_its_known_bad_sample(lint, rid, sample):
+    assert rid in rules(lint(sample))
+
+
+def test_late_verb_counts_words_before_the_verb_group(lint):
+    (w,) = [
+        w
+        for w in lint(
+            "Every file that the old importer wrote to the shared folder during "
+            "the nightly run last week has been deleted."
+        )
+        if w.rule == "R5"
+    ]
+    assert w.message.startswith('17 words before the main verb "has"')
+    assert w.severity == "warning"
+
+
+def test_late_verb_ignores_an_early_main_clause(lint):
+    # The parser makes "checked" the root; "is" comes first.
+    text = (
+        "A version matrix on top of a flaky suite is noise, so the suite was "
+        "checked for flakes before the matrix went in."
+    )
+    assert "R5" not in rules(lint(text))
+
+
+def test_late_verb_restarts_after_a_label(lint):
+    text = (
+        "**Every nightly run of the importer on the shared folder**: the file is "
+        "deleted."
+    )
+    assert "R5" not in rules(lint(text))
+
+
+def test_late_verb_skips_fragments(lint):
+    assert "R5" not in rules(lint("- The first of the three main reasons for it"))
+
+
+def test_vague_this_needs_a_bare_pronoun_and_an_action_verb(lint):
+    assert "R6" not in rules(lint("This flag allows faster lookups. It is fast."))
+    assert "R6" not in rules(lint("This is the second stage. It is fast."))
+    (w,) = [w for w in lint("This allows reuse. It is fast.") if w.rule == "R6"]
+    assert (
+        w.message
+        == '"This allows": name what "this" is, or make the actor the subject.'
+    )
+
+
+def test_tidy_summary_only_at_paragraph_end(lint):
+    assert "R7" not in rules(lint("Overall, it works. The cache is small."))
+    assert "R7" not in rules(lint("Overall, it works."))
+    (w,) = [w for w in lint("It caches. In short, it is fast.") if w.rule == "R7"]
+    assert w.message.startswith('Paragraph ends with a summary ("In short ...")')
+
+
+def test_closing_this_ensures_is_r7_not_r6(lint):
+    found = rules(lint("The hook runs on commit. This ensures the docs stay clean."))
+    assert "R7" in found
+    assert "R6" not in found

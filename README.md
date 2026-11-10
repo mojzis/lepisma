@@ -49,7 +49,7 @@ spaCy models are not on PyPI, so `en_core_web_sm` 3.8.0 is not a dependency. On
 first use, `check`, `stats`, `measure` and the server download the wheel once
 (~13 MB) and check its SHA-256. They unpack it to
 `~/.cache/lepisma/models/`, outside any virtualenv, so every `uvx` run and
-venv shares one copy. This needs no pip. The hook client never downloads; it
+venv shares one copy. No pip is needed. The hook client never downloads; it
 skips commits while the server starts.
 
 Offline, install the model into the environment instead:
@@ -118,13 +118,16 @@ The server log is in `~/.cache/lepisma/server.log`.
 | R2 | `noun-stack` | 4 or more nouns in a row modify each other | 5 or more |
 | R3 | `habit-word` | a word from the habit list appears | more than 2 in one paragraph |
 | R4 | `nominalization` | a weak verb takes an abstract noun ("performs validation of") | the sentence also has 4 or more abstract nouns |
+| R5 | `late-verb` | more than 14 words come before the main verb | more than 20 |
+| R6 | `vague-this` | a bare "This" or "These" is the subject of an action verb ("This allows ...") | never |
+| R7 | `tidy-summary` | a paragraph's last sentence opens with "Overall", "In summary", "This ensures" and the like | never |
 
 Details:
 
 - **All rules** skip code blocks, inline code, tables, front matter, HTML and link
   targets. List items that hold only an identifier, like `- max_retries`, are skipped
   too.
-- **Headings** get R3 only.
+- **Headings** get R3 only. R7 looks at paragraphs and quotes only.
 - **R2** ignores runs made only of proper nouns, like "GitHub Actions CI". It also
   ignores runs with more than one proper noun (`max_proper_nouns`), like "Claude Code
   conversation logs". Inline code breaks a run, and a hyphenated word like
@@ -157,6 +160,18 @@ Details:
   flagged, but "is one placement of" is not. "provide", "give" and "offer" are
   skipped when they hand something over. That means a recipient ("provides guidance to
   Claude Code") or a named deliverable ("provide image descriptions").
+- **R5** counts words up to the first word of the main verb group, so "will" in
+  "will be deleted". A long "When ..." or "If ..." clause in front counts, which is
+  the point. The parser often hangs the first clause under a later one. So any
+  clause with its own subject and no "if" or "which" in front counts as a main
+  clause. The count restarts after a label mark (":", " - ", em dash) or a semicolon.
+  Sentences with no verb at the root, like list fragments, are skipped. At 12 words
+  it flagged 2.4 per 1,000 words in the toolbox docs; at 14 it is under 1.
+<!-- lepisma: disable-next R3 -->
+- **R6** skips "This flag allows" (the noun names the referent) and "This is"
+  (plain linking verb). A paragraph's closing "This ensures ..." is left to R7.
+- **R7** needs a paragraph of two or more sentences. The opener list is
+  `openers` in the config.
 
 ## Measuring whole docs
 
@@ -254,11 +269,11 @@ further.
 
 Current numbers (warnings per 1,000 words):
 
-| Set | Words | R1 | R2 | R3 | R4 | Total |
-| --- | --- | --- | --- | --- | --- | --- |
-| bad | 2,698 | 7.4 | 3.3 | 41.9 | 8.5 | 61.2 |
-| good | 1,235 | 0 | 0 | 0.8 | 0 | 0.8 |
-| toolbox | 51,529 | 9.0 | 0.1 | 0.0 | 0.2 | 9.3 |
+| Set | Words | R1 | R2 | R3 | R4 | R5 | R6 | R7 | Total |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| bad | 2,698 | 7.4 | 3.3 | 41.9 | 8.5 | 0 | 0 | 3.3 | 64.5 |
+| good | 1,235 | 0 | 0 | 0.8 | 0 | 0 | 0 | 0 | 0.8 |
+| toolbox | 51,529 | 9.0 | 0.1 | 0.0 | 0.2 | 0.9 | 0.2 | 0.0 | 10.3 |
 
 ## Roadmap
 
@@ -266,8 +281,9 @@ Current numbers (warnings per 1,000 words):
 2. ~~Four starter rules~~
 3. ~~Commit hook in warn-only mode~~
 4. Feedback loop: rewrite with Claude, then ask people whether the result reads better.
-5. Expand: try passive voice per paragraph, late main verb, deep nesting, too many
-   parentheses, undefined acronyms, repeated openings, summary filler and Flesch score.
+5. Expand: ~~late main verb~~, ~~vague "this"~~, ~~summary filler~~. Next: passive
+   voice per paragraph, deep nesting, too many parentheses, undefined acronyms,
+   repeated openings and Flesch score.
    Add an optional LLM judge in CI.
 6. Port the useful rules to Rust (harper-core and Weir) if speed or distribution
    becomes a problem.

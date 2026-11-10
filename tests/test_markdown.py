@@ -1,4 +1,4 @@
-from lepisma.markdown import PLACEHOLDER, parse
+from lepisma.markdown import ALL_RULES, PLACEHOLDER, parse
 
 
 def texts(source: str) -> list[str]:
@@ -72,7 +72,7 @@ B.
 C.
 """
     disabled = [sorted(b.disabled) for b in parse(source)]
-    assert disabled == [["R2"], ["R1", "R2", "R3", "R4"], []]
+    assert disabled == [["R2"], sorted(ALL_RULES), []]
 
 
 def test_multiline_html_comment_is_skipped():

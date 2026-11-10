@@ -34,3 +34,13 @@ ignore = ["corpus/**", "CHANGELOG.md"]
 # extra_stoplist = ["migration"]
 # min_length = 7
 # max_per_sentence = 4
+
+[rules.late-verb]          # R5
+# max_words_before = 14
+# strong_words_before = 20
+
+[rules.vague-this]         # R6
+# words = ["this", "these"]
+
+[rules.tidy-summary]       # R7
+# openers = ["overall", "in summary", "this ensures", ...]

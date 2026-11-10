@@ -1,4 +1,4 @@
-"""The four starter rules. Each takes a parsed block and returns findings."""
+"""The lint rules. Each takes a parsed block and returns findings."""
 
 from __future__ import annotations
 
@@ -495,6 +495,158 @@ def nominalization(block: Block, doc: Doc, cfg: Config) -> Iterator[Finding]:
             )
 
 
+_VERB_POS = {"VERB", "AUX"}
+_AUX_DEPS = {"aux", "auxpass", "neg"}
+
+
+def _verb_group_start(verb: Token) -> Token:
+    """The first word of a verb group: "will" in "will be deleted"."""
+    return min(
+        (verb, *(c for c in verb.children if c.dep_ in _AUX_DEPS)), key=lambda t: t.i
+    )
+
+
+def _main_verb(sent: Span) -> Token | None:
+    """The start of the first main-clause verb group, or None for a fragment.
+
+    Main clauses are the root and any clause joined to it ("X is noise, so Y
+    was checked"); the parser often makes the later one the root.
+    """
+    root = sent.root
+    if root.pos_ not in _VERB_POS:
+        return None
+    clauses = [root]
+    clauses.extend(
+        t for t in root.children if t.dep_ in _JOINED and t.pos_ in _VERB_POS
+    )
+    # The parser sometimes hangs the first main clause under a later one; any
+    # finite verb with its own subject and no "if"/"which" in front counts.
+    clauses.extend(t for t in sent if _is_main_clause(t))
+    return min((_verb_group_start(v) for v in clauses), key=lambda t: t.i)
+
+
+_JOINED = {"conj", "parataxis"}
+_FINITE_TAGS = {"VBZ", "VBP", "VBD", "MD"}
+_SUBORDINATE = {"advcl", "relcl", "acl", "csubj", "csubjpass", "pcomp", "xcomp"}
+
+
+def _is_main_clause(tok: Token) -> bool:
+    if tok.pos_ not in _VERB_POS or tok.dep_ in _SUBORDINATE:
+        return False
+    group = [tok, *(c for c in tok.children if c.dep_ in _AUX_DEPS)]
+    if not any(t.tag_ in _FINITE_TAGS for t in group):
+        return False
+    deps = {c.dep_ for c in tok.children}
+    return bool(deps & {"nsubj", "nsubjpass", "expl"}) and "mark" not in deps
+
+
+def _words_before(sent: Span, stop: Token, block: Block) -> int:
+    """Words from the sentence start (or its last label mark) up to ``stop``."""
+    count = 0
+    for tok in sent.doc[sent.start : stop.i]:
+        if (tok.text in _LABEL_MARKS or tok.text == ";") and not _is_joiner(tok):
+            count = 0  # "**Status**: ...", "`fn()` - ..." or "...; then": restart
+        elif is_word(tok):
+            count += 1
+    return count
+
+
+def late_verb(block: Block, doc: Doc, cfg: Config) -> Iterator[Finding]:
+    """R5: too many words before the main verb."""
+    rule = cfg.late_verb
+    if block.kind == "heading":
+        return
+    for sent in doc.sents:
+        verb = _main_verb(sent)
+        if verb is None:
+            continue
+        before = _words_before(sent, verb, block)
+        if before <= rule.max_words_before:
+            continue
+        strong = before > rule.strong_words_before
+        first = next((t for t in sent if not t.is_space), sent[0])
+        yield Finding(
+            rule="R5",
+            offset=first.idx,
+            message=(
+                f'{before} words before the main verb "{verb.text}"; '
+                "put the subject and verb first."
+            ),
+            severity="strong" if strong else "warning",
+        )
+
+
+def _summary_opener(sent: Span, openers: list[str]) -> str | None:
+    """The opener from ``openers`` that starts the sentence, if any."""
+    text = sent.text.lstrip().lower()
+    for opener in openers:
+        low = opener.lower()
+        if text.startswith(low) and not text[len(low) : len(low) + 1].isalnum():
+            return low
+    return None
+
+
+def vague_this(block: Block, doc: Doc, cfg: Config) -> Iterator[Finding]:
+    """R6: a sentence whose subject is a bare "This" ("This allows ...")."""
+    rule = cfg.vague_this
+    if block.kind == "heading":
+        return
+    words = {w.lower() for w in rule.words}
+    sents = list(doc.sents)
+    for idx, sent in enumerate(sents):
+        first = next((t for t in sent if is_word(t)), None)
+        if first is None or first.lower_ not in words:
+            continue
+        # A determiner ("This flag ...") names its referent; only the bare
+        # pronoun as subject is vague.
+        if first.dep_ != "nsubj" or first.pos_ != "PRON":
+            continue
+        verb = first.head
+        # "This is the last stage" is plain; "This allows ..." hides the actor.
+        if verb.pos_ not in _VERB_POS or verb.lemma_ == "be":
+            continue
+        # R7 already reports a closing "This ensures ...".
+        last = idx == len(sents) - 1 and len(sents) > 1
+        summary = cfg.tidy_summary
+        if last and summary.enabled and _summary_opener(sent, summary.openers):
+            continue
+        near = verb.i - first.i <= _MAX_PHRASE
+        phrase = doc[first.i : verb.i + 1].text if near else first.text
+        yield Finding(
+            rule="R6",
+            offset=first.idx,
+            message=(
+                f'"{phrase}": name what "{first.lower_}" is, '
+                "or make the actor the subject."
+            ),
+        )
+
+
+_MIN_SUMMARY_SENTS = 2  # a lone sentence has nothing to summarize
+
+
+def tidy_summary(block: Block, doc: Doc, cfg: Config) -> Iterator[Finding]:
+    """R7: a paragraph that ends by restating itself ("Overall, ...")."""
+    if block.kind not in {"paragraph", "quote"}:
+        return
+    sents = [s for s in doc.sents if any(is_word(t) for t in s)]
+    if len(sents) < _MIN_SUMMARY_SENTS:
+        return
+    last = sents[-1]
+    opener = _summary_opener(last, cfg.tidy_summary.openers)
+    if opener is None:
+        return
+    first = next(t for t in last if not t.is_space)
+    said = last.text.lstrip()[: len(opener)]
+    yield Finding(
+        rule="R7",
+        offset=first.idx,
+        message=(
+            f'Paragraph ends with a summary ("{said} ..."); cut it or add a new fact.'
+        ),
+    )
+
+
 RuleFn = Callable[["Block", "Doc", "Config"], Iterator[Finding]]
 
 RULE_FUNCS: dict[str, RuleFn] = {
@@ -502,4 +654,7 @@ RULE_FUNCS: dict[str, RuleFn] = {
     "R2": noun_stack,
     "R3": habit_words,
     "R4": nominalization,
+    "R5": late_verb,
+    "R6": vague_this,
+    "R7": tidy_summary,
 }
