@@ -16,15 +16,15 @@ if TYPE_CHECKING:
     from spacy.language import Language
     from spacy.tokens import Doc
 
-MODEL = "en_core_web_sm"
-
 
 @cache
 def load_nlp() -> Language:
-    """Load the spaCy model once per process."""
+    """Load the spaCy model once per process, downloading it on first use."""
     import spacy  # noqa: PLC0415 - heavy import, kept off the hook's path
 
-    return spacy.load(MODEL, disable=["ner"])
+    from prose_lint.spacy_model import locate  # noqa: PLC0415
+
+    return spacy.load(locate(), disable=["ner"])
 
 
 @cache

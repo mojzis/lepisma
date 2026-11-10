@@ -2,14 +2,18 @@
 name = "prose-lint"
 version = "0.1.0"
 description = "Soft, fast prose warnings for Claude-written Markdown docs"
+readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "spacy>=3.8,<3.9",
-    "en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
     "fastapi>=0.115",
     "pydantic>=2",
     "uvicorn>=0.32",
 ]
+
+[project.urls]
+Homepage = "https://github.com/mojzis/prose-linter"
+Issues = "https://github.com/mojzis/prose-linter/issues"
 
 [project.scripts]
 prose-lint = "prose_lint.cli:main"
@@ -25,12 +29,12 @@ measure = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.hatch.metadata]
-allow-direct-references = true
-
 [dependency-groups]
 dev = [
     "prose-lint[measure]",
+    # Not a runtime dependency: PyPI rejects URL deps, so installs fetch the model on
+    # first use (spacy_model.py). Dev and tests get it here, offline after uv sync.
+    "en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
     # aesop toolbox
     "madoqua",
     "gerenuk",

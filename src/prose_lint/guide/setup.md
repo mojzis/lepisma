@@ -9,8 +9,13 @@ is no `prose-lint.toml` and no `prose-lint hook` step in `pyproject.toml`.
 1. Add it as a dev dependency, so the hook finds it in `.venv`:
 
    ```
-   uv add --dev "prose-lint @ git+https://github.com/mojzis/prose-linter"
+   uv add --dev prose-lint
    ```
+
+   The first run downloads the spaCy model (~13 MB) into
+   `~/.cache/prose-lint/models/`. Offline, run
+   `uv pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl`
+   or set `PROSE_LINT_MODEL_WHEEL` to a local copy of that wheel.
 
 2. Create `prose-lint.toml` at the repo root. An empty file is valid; every key
    has a default. Add an `ignore` list for generated or vendored docs:

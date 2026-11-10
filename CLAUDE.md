@@ -19,6 +19,11 @@ using the CLI.
   the library API (`Measurer`). `measure_report.py` builds the scores and
   `report.md`. Both need the `measure` extra (TextDescriptives, Polars), so keep
   them off the lint and hook path.
+- `spacy_model.py` finds the spaCy model. An installed `en_core_web_sm` wins (the
+  dev group has it); otherwise it downloads the hash-pinned wheel once into
+  `~/.cache/prose-lint/models/`. The model is not a runtime dependency because PyPI
+  rejects URL deps. Bump `VERSION`, `WHEEL_SHA256` and the dev-group URL together
+  with the spaCy minor.
 - `server.py` is the FastAPI server on 127.0.0.1:8737, with an LRU cache and idle exit.
 - `corpus/` is the baseline test set. `tests/test_corpus.py` checks that bad docs score
   far worse than good ones.
@@ -39,6 +44,12 @@ toolbox docs low. Add a test to
 - `uv run poe fix` — auto-format and fix lint issues
 - `uv run poe test` — run tests only
 - `uv run poe check-all` — run all checks including dead-code and unused-deps
+
+## Releasing
+
+Bump `version` in `pyproject.toml`, commit, then `git tag vX.Y.Z` and
+`git push origin vX.Y.Z`. `.github/workflows/release.yml` builds, runs
+`twine check`, and publishes to PyPI (trusted publishing, environment `pypi`).
 
 ## Stack
 

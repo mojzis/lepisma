@@ -280,4 +280,12 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     """Run the CLI."""
     args = build_parser().parse_args(argv)
-    return args.func(args)
+    try:
+        return args.func(args)
+    except RuntimeError as exc:
+        from prose_lint.spacy_model import ModelError  # noqa: PLC0415
+
+        if not isinstance(exc, ModelError):
+            raise
+        print(f"prose-lint: {exc}", file=sys.stderr)  # noqa: T201
+        return 2
