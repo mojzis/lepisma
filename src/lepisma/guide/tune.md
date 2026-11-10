@@ -39,6 +39,16 @@ max_per_paragraph = {{habit_words.max_per_paragraph}}
 # extra_stoplist = ["migration"]   # concrete words that end in -tion etc.
 min_length = {{nominalization.min_length}}
 max_per_sentence = {{nominalization.max_per_sentence}}
+
+[rules.late-verb]                  # R5
+max_words_before = {{late_verb.max_words_before}}
+strong_words_before = {{late_verb.strong_words_before}}
+
+[rules.vague-this]                 # R6
+# words = ["this", "these"]
+
+[rules.tidy-summary]               # R7
+# openers = ["overall", "in summary", "this ensures", ...]
 ```
 
 Rules can be named by ID (`R2`) or name (`noun-stack`), here and in comments:
