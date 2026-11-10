@@ -686,6 +686,77 @@ wheels = [
 ]
 
 [[package]]
+name = "lepisma"
+version = "0.1.1"
+source = { editable = "." }
+dependencies = [
+    { name = "fastapi" },
+    { name = "pydantic" },
+    { name = "spacy" },
+    { name = "uvicorn" },
+]
+
+[package.optional-dependencies]
+measure = [
+    { name = "polars" },
+    { name = "textdescriptives", version = "2.8.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "textdescriptives", version = "2.8.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "biston" },
+    { name = "deptry" },
+    { name = "en-core-web-sm" },
+    { name = "gerenuk" },
+    { name = "httpx" },
+    { name = "interrogate" },
+    { name = "lepisma", extra = ["measure"] },
+    { name = "madoqua" },
+    { name = "poethepoet" },
+    { name = "pycoati" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "ty" },
+    { name = "ty-find" },
+    { name = "vulture" },
+    { name = "zorilla" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.115" },
+    { name = "polars", marker = "extra == 'measure'", specifier = ">=2.1.0" },
+    { name = "pydantic", specifier = ">=2" },
+    { name = "spacy", specifier = ">=3.8,<3.9" },
+    { name = "textdescriptives", marker = "extra == 'measure'", specifier = ">=2.8.2" },
+    { name = "uvicorn", specifier = ">=0.32" },
+]
+provides-extras = ["measure"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "biston" },
+    { name = "deptry" },
+    { name = "en-core-web-sm", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" },
+    { name = "gerenuk" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "interrogate" },
+    { name = "lepisma", extras = ["measure"] },
+    { name = "madoqua" },
+    { name = "poethepoet" },
+    { name = "pycoati" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "ty" },
+    { name = "ty-find" },
+    { name = "vulture" },
+    { name = "zorilla" },
+]
+
+[[package]]
 name = "madoqua"
 version = "0.2.7"
 source = { registry = "https://pypi.org/simple" }
@@ -1214,77 +1285,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/3f/d9/55b4d738a856b63795fc1a04e004b97d409d5459e1e0873d7df38033600a/preshed-3.0.15-cp315-cp315t-musllinux_1_2_x86_64.whl", hash = "sha256:c4b7374966199383051a684f6a3da036e1d5dea85264658b672e063a0b3e24ce", size = 2005706, upload-time = "2026-10-25T23:03:37.572Z" },
     { url = "https://files.pythonhosted.org/packages/66/ec/91acb34e0c1eae3962325300055221ba5b3ba382ef38ac7203dd216e1a63/preshed-3.0.15-cp315-cp315t-win_amd64.whl", hash = "sha256:7e2e3b5e17b4f96cf2876a594549564d827b3033452c90b5a071a39a7f9562b2", size = 142353, upload-time = "2026-10-25T23:03:38.945Z" },
     { url = "https://files.pythonhosted.org/packages/a0/63/2fae2bb19b26fcb9d346e663a6fc90189b60ccbc8ccc89e110167554233d/preshed-3.0.15-cp315-cp315t-win_arm64.whl", hash = "sha256:2e519ef8b8e979eab40d18cee7a57343c9b80a1477f17f5a326f8e6ec8a350e2", size = 133133, upload-time = "2026-10-25T23:03:40.178Z" },
-]
-
-[[package]]
-name = "lepisma"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "fastapi" },
-    { name = "pydantic" },
-    { name = "spacy" },
-    { name = "uvicorn" },
-]
-
-[package.optional-dependencies]
-measure = [
-    { name = "polars" },
-    { name = "textdescriptives", version = "2.8.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "textdescriptives", version = "2.8.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "biston" },
-    { name = "deptry" },
-    { name = "en-core-web-sm" },
-    { name = "gerenuk" },
-    { name = "httpx" },
-    { name = "interrogate" },
-    { name = "madoqua" },
-    { name = "poethepoet" },
-    { name = "lepisma", extra = ["measure"] },
-    { name = "pycoati" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "ruff" },
-    { name = "ty" },
-    { name = "ty-find" },
-    { name = "vulture" },
-    { name = "zorilla" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "fastapi", specifier = ">=0.115" },
-    { name = "polars", marker = "extra == 'measure'", specifier = ">=2.1.0" },
-    { name = "pydantic", specifier = ">=2" },
-    { name = "spacy", specifier = ">=3.8,<3.9" },
-    { name = "textdescriptives", marker = "extra == 'measure'", specifier = ">=2.8.2" },
-    { name = "uvicorn", specifier = ">=0.32" },
-]
-provides-extras = ["measure"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "biston" },
-    { name = "deptry" },
-    { name = "en-core-web-sm", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" },
-    { name = "gerenuk" },
-    { name = "httpx", specifier = ">=0.28.1" },
-    { name = "interrogate" },
-    { name = "madoqua" },
-    { name = "poethepoet" },
-    { name = "lepisma", extras = ["measure"] },
-    { name = "pycoati" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "ruff" },
-    { name = "ty" },
-    { name = "ty-find" },
-    { name = "vulture" },
-    { name = "zorilla" },
 ]
 
 [[package]]
