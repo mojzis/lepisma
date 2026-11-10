@@ -37,7 +37,7 @@ Add it to the repo's dev dependencies, so the hook finds it in `.venv`:
 
 ```
 uv add --dev prose-lint
-cp /path/to/prose-linter/prose-lint.toml .   # optional; every key has a default
+cp /path/to/prose-lint/prose-lint.toml .   # optional; every key has a default
 ```
 
 ### The spaCy model

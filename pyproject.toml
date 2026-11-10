@@ -13,8 +13,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/mojzis/prose-linter"
-Issues = "https://github.com/mojzis/prose-linter/issues"
+Homepage = "https://github.com/mojzis/prose-lint"
+Issues = "https://github.com/mojzis/prose-lint/issues"
 
 [project.scripts]
 prose-lint = "prose_lint.cli:main"
