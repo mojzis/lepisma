@@ -93,7 +93,8 @@ class NounStack:
     """R2 settings."""
 
     enabled: bool = True
-    min_nouns: int = 3
+    # 3 flagged plain technical terms ("Unix domain socket") in real docs.
+    min_nouns: int = 4
     strong_nouns: int = 5
     # A run of only proper nouns is usually a product name ("GitHub Actions CI").
     ignore_all_propn: bool = True

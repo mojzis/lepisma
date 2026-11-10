@@ -1,0 +1,279 @@
+# biston
+
+A structural clone detector for Python code. Written in Rust.
+
+It parses Python files with [tree-sitter](https://tree-sitter.github.io/tree-sitter/), normalizes the AST, and finds functions that are structurally similar to each other.
+
+## Working with a coding agent
+
+biston explains itself, so you do not have to. Hand your agent one line:
+
+> Run `uvx biston guide` at the root of this repo and follow what it says.
+
+It prints what to do at the moment you are actually in -- how to install and
+wire biston up when the repo has no config, and what to do with each finding
+when it does. When a scan reports clones, its footer points the agent at
+`biston guide triage`, so a failed check leads back to the instructions on its
+own. See [`biston guide`](#biston-guide) for the three topics and how one is
+chosen.
+
+## Install
+
+```
+uv add biston
+```
+
+Or build from source:
+
+```
+cargo build --release
+```
+
+## Usage
+
+```
+biston <COMMAND>
+```
+
+### Commands
+
+#### `biston scan`
+
+Scan a directory for code clones.
+
+```
+Usage: biston scan [OPTIONS] [PATH]
+
+Arguments:
+  [PATH]  Directory to scan [default: .]
+
+Options:
+      --format <FORMAT>        Output format [possible values: text, json, sarif]
+      --min-lines <MIN_LINES>  Minimum function length in executable lines (alias: sets both tier floors)
+      --exact-min-lines <N>    Executable lines the shorter function needs for an exact match [default: 5]
+      --similar-min-lines <N>  Executable lines the shorter function needs for a fuzzy match [default: 9]
+      --exact-min-stmts <N>    Statements a body needs for an exact match [default: 3]
+      --exact-min-fragment-lines <N>    Executable lines an exactly-matched contained run needs [default: 10]
+      --similar-min-fragment-lines <N>  Executable lines a fuzzily-matched contained run needs [default: 15]
+      --threshold <THRESHOLD>  Similarity threshold (0.0 - 1.0)
+      --config <CONFIG>        Config file directory (looks for biston.toml or pyproject.toml)
+      --tests-only             Restrict the scan to Python test files (overrides include/exclude)
+      --containment            Also report functions already implemented by a run of another
+      --suggest                Generate abstraction suggestions for similar pairs
+      --files <FILE>           Only emit pairs involving this file (repeat for multiple)
+      --files-from <PATH>      Read focus file list from PATH, or `-` for stdin
+  -h, --help                   Print help
+```
+
+#### `biston guide`
+
+Print short, self-contained instructions for the moment you are in. Written to
+be read by a coding agent -- see [Working with a coding agent](#working-with-a-coding-agent).
+
+```
+Usage: biston guide [TOPIC]
+
+Arguments:
+  [TOPIC]  setup, triage or tune. Omit to let biston choose.
+```
+
+With no topic, biston prints `setup` when it is not configured in the current
+directory and `triage` when it is; `tune` is a reference and is never
+auto-selected. Detection looks at the current directory only and never walks up,
+so run it at the repository root. The first line of output always says which
+topic you got and why:
+
+```
+# biston guide: not configured here -> setup
+# biston guide: configured via pyproject.toml [tool.biston] -> triage
+```
+
+A repository counts as configured when it has a `biston.toml`, a
+`[tool.biston]` table in `pyproject.toml`, or a `.pre-commit-config.yaml`
+referencing the biston hook -- named in that order of precedence.
+
+The three pages are also on the docs site: [Setup](https://mojzis.github.io/biston/guide/setup.html),
+[Triage](https://mojzis.github.io/biston/guide/triage.html),
+[Tune](https://mojzis.github.io/biston/guide/tune.html). The CLI and the site
+serve the same bytes.
+
+#### `biston stats`
+
+Show statistics about scan findings.
+
+```
+Usage: biston stats [OPTIONS] [PATH]
+
+Arguments:
+  [PATH]  Directory to scan [default: .]
+
+Options:
+      --format <FORMAT>        Output format [possible values: text, json, sarif]
+      --min-lines <MIN_LINES>  Minimum function length in executable lines (alias: sets both tier floors)
+      --exact-min-lines <N>    Executable lines the shorter function needs for an exact match [default: 5]
+      --similar-min-lines <N>  Executable lines the shorter function needs for a fuzzy match [default: 9]
+      --exact-min-stmts <N>    Statements a body needs for an exact match [default: 3]
+      --exact-min-fragment-lines <N>    Executable lines an exactly-matched contained run needs [default: 10]
+      --similar-min-fragment-lines <N>  Executable lines a fuzzily-matched contained run needs [default: 15]
+      --threshold <THRESHOLD>  Similarity threshold (0.0 - 1.0)
+      --config <CONFIG>        Config file directory (looks for biston.toml or pyproject.toml)
+      --tests-only             Restrict the scan to Python test files (overrides include/exclude)
+      --containment            Also report functions already implemented by a run of another
+      --files <FILE>           Only emit pairs involving this file (repeat for multiple)
+      --files-from <PATH>      Read focus file list from PATH, or `-` for stdin
+  -h, --help                   Print help
+```
+
+##### Scanning tests only
+
+Test suites often accumulate duplication (near-identical cases that could be `@pytest.mark.parametrize`, copy-pasted arrange/act/assert blocks). By default biston excludes test files so production-code findings stay focused. Pass `--tests-only` to flip the scope and scan only test files:
+
+```
+biston scan --tests-only
+biston stats --tests-only
+```
+
+The flag replaces `include` with common Python test patterns (`**/test_*.py`, `**/*_test.py`, `**/conftest.py`, `tests/**/*.py`) and clears `exclude`. Other knobs (the size floors, `threshold`, normalization) are left untouched — tune them separately in `biston.toml` if you want different defaults for a test run.
+
+#### Commit-hook use (focus files)
+
+`--files` / `--files-from` let you restrict reporting to pairs involving a
+specific set of files, while still scanning the whole repo so cross-file
+clones between those files and the rest of the tree are detected.
+
+For a pre-commit hook, pipe `git diff --name-only` through `--files-from -`:
+
+```bash
+git diff --name-only --diff-filter=ACM -- '*.py' \
+  | biston scan --files-from - .
+```
+
+An empty list (no Python files changed) correctly emits no pairs. Prefer
+`--files-from` over `--files $(git diff --name-only)` — the latter expands to
+an empty flag when nothing changed, which reverts to a full-repo scan.
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | `scan` / `stats` found nothing; any other subcommand printed its output |
+| `1` | `scan` / `stats` reported findings (clone pairs or containments) |
+| `2` | biston could not do its job: bad usage, unreadable path, invalid config |
+
+A check aggregator can therefore run `biston scan .` directly, and tell a
+duplicated tree from a broken invocation.
+
+## Configuration
+
+Settings can go in `biston.toml` or under `[tool.biston]` in `pyproject.toml`. If both files exist, `biston.toml` takes priority. CLI flags override config file settings.
+
+### `[scan]`
+
+| Setting | Default | Description |
+|---|---|---|
+| `exact_min_lines` | `5` | Executable lines the shorter function needs for an **exact** match to be reported |
+| `similar_min_lines` | `9` | Executable lines the shorter function needs for a **fuzzy** match to be reported |
+| `exact_min_stmts` | `3` | Statements a body needs for an exact match to be reported (exact tier only) |
+| `threshold` | `0.85` | Similarity threshold for the fuzzy tier (0.0–1.0) |
+| `min_lines` | — | Retained alias: sets both line floors at once |
+| `exclude` | `["tests/**", "**/conftest.py", "migrations/**"]` | File patterns to exclude |
+| `include` | `["**/*.py"]` | File patterns to include |
+
+Floors are counted in **executable lines** — source lines holding at least one token
+that survives normalization. Comments, docstrings and blank lines never count. See
+[How acceptance works](https://mojzis.github.io/biston/acceptance.html) for the two
+tier tables and the reasoning behind them.
+
+### `[normalization]`
+
+| Setting | Default | Description |
+|---|---|---|
+| `anonymize_locals` | `true` | Replace local variable names |
+| `anonymize_literals` | `false` | Replace literal values |
+| `strip_decorators` | `true` | Remove decorators from AST |
+| `strip_type_annotations` | `true` | Remove type hints |
+| `sort_commutative` | `false` | Sort commutative operations |
+
+### `[output]`
+
+| Setting | Default | Description |
+|---|---|---|
+| `format` | `"text"` | Output format (`text`, `json`, or `sarif`) |
+| `group_overlapping` | `true` | Group overlapping clones |
+| `max_results` | `50` | Maximum number of results |
+| `show_source` | `true` | Display source code in output |
+| `context_lines` | `3` | Number of context lines around clones |
+
+### `[suggest]`
+
+| Setting | Default | Description |
+|---|---|---|
+| `enabled` | `false` | Enable suggestion generation |
+| `min_quality` | `0.6` | Minimum template coverage score (0.0–1.0) |
+| `max_holes` | `5` | Maximum holes before suppressing |
+| `render_python` | `true` | Render templates as Python source |
+
+### `[containment]`
+
+Directed detection: one function already implements the leading or trailing run of
+another's body. Off by default; see [Containment](https://mojzis.github.io/biston/containment.html).
+
+| Setting | Default | Description |
+|---|---|---|
+| `enabled` | `false` | Enable containment detection (or pass `--containment`) |
+| `exact_min_fragment_lines` | `10` | Executable lines an **exactly** matched run needs |
+| `similar_min_fragment_lines` | `15` | Executable lines a **fuzzily** matched run needs |
+| `min_fragment_lines` | — | Retained alias: sets both fragment floors at once |
+| `min_ratio` | `0.30` | Contained function size / container size |
+| `threshold` | `0.85` | Minimum containment coefficient (0.0–1.0) |
+| `size_balance` | `1.25` | Largest tolerated size ratio between the function and the run |
+| `max_run_fraction` | `0.85` | Largest share of the container's statements a run may span |
+| `max_probes_per_function` | `12` | Cap on candidate-generating probes per function |
+
+### `[suppress]`
+
+| Setting | Default | Description |
+|---|---|---|
+| `files` | `[]` | File glob patterns to suppress entirely |
+
+### Example `biston.toml`
+
+```toml
+[scan]
+exact_min_lines = 6
+similar_min_lines = 15
+threshold = 0.8
+exclude = ["vendor/"]
+include = ["src/**/*.py"]
+
+[normalization]
+anonymize_locals = false
+anonymize_literals = true
+
+[output]
+format = "json"
+max_results = 100
+
+[suggest]
+enabled = true
+min_quality = 0.8
+```
+
+### Inline suppression
+
+You can also suppress findings with Python comments:
+
+- `# biston: ignore-file` — suppress the entire file (must appear in the first 5 lines)
+- `# biston: ignore` — suppress a single function (place in the function body or on the preceding line)
+
+When `scan` or `overview` reports clones, the text output ends with a one-line
+footer pointing at `biston guide triage`. The footer is printed whether or not
+stdout is a terminal, and never in `json` or `sarif` output.
+
+## Documentation
+
+Full docs at <https://mojzis.github.io/biston/>.
+
+## License
+
+MIT

@@ -61,7 +61,7 @@ The server log is in `~/.cache/prose-lint/server.log`.
 | ID | Name | Warns when | Strong when |
 | --- | --- | --- | --- |
 | R1 | `long-sentence` | a sentence has more than 25 words | more than 35 |
-| R2 | `noun-stack` | 3 or more nouns in a row modify each other | 5 or more |
+| R2 | `noun-stack` | 4 or more nouns in a row modify each other | 5 or more |
 | R3 | `habit-word` | a word from the habit list appears | more than 2 in one paragraph |
 | R4 | `nominalization` | a weak verb takes an abstract noun ("performs validation of") | the sentence also has 4 or more abstract nouns |
 
@@ -72,7 +72,9 @@ Details:
   too.
 - **Headings** get R3 only.
 - **R2** ignores runs made only of proper nouns, like "GitHub Actions CI". Inline code
-  breaks a run.
+  breaks a run, and a hyphenated word like "event-store" counts as one noun. The
+  threshold is 4, not 3: at 3 it flagged plain technical terms like "Unix domain
+  socket" in real docs.
 <!-- prose-lint: disable-next R3 -->
 - **R3** matches inflections, so "leveraging" counts as "leverage". The default list:
   comprehensive, robust, seamless, leverage, utilize, delve, crucial, essential,
@@ -117,17 +119,25 @@ loop. Then check the result with people, not just with the linter.
 - **Human rating.** A quick 1 to 5 readability score on the test set.
 - **Noise.** How often people disable each rule. Remove the noisy ones.
 
-The baseline test set lives in [`corpus/`](corpus/). The `bad/` folder holds docs that
-read badly and `good/` holds docs that read well. `tests/test_corpus.py` checks that bad
-docs score far worse than good ones. The current docs are synthetic placeholders.
-Replace them with 10 to 20 real docs from your team before tuning thresholds.
+The baseline test set lives in [`corpus/`](corpus/):
 
-Current numbers on the placeholder set (warnings per 1,000 words):
+- `bad/` and `good/` hold synthetic docs that read badly and well.
+  `tests/test_corpus.py` checks that bad docs score far worse than good ones.
+- `toolbox/` holds the real docs of the aesop tools (gerenuk, madoqua, biston,
+  zorilla, coati, ty-find). They are unlabeled. The test checks that R2 to R4 stay
+  under 1 per 1,000 words there, which catches rules that start flagging normal
+  prose. `scripts/sync-toolbox-corpus.sh` refreshes the copy.
 
-| Set | R1 | R2 | R3 | R4 | Total |
-| --- | --- | --- | --- | --- | --- |
-| bad | 7.4 | 7.4 | 44.5 | 8.9 | 68.2 |
-| good | 0 | 2.4 | 0.8 | 0 | 3.2 |
+Swap in 10 to 20 real hard-to-read docs from your team for `bad/` before tuning
+further.
+
+Current numbers (warnings per 1,000 words):
+
+| Set | Words | R1 | R2 | R3 | R4 | Total |
+| --- | --- | --- | --- | --- | --- | --- |
+| bad | 2,698 | 7.4 | 3.3 | 44.5 | 8.9 | 64.1 |
+| good | 1,235 | 0 | 0 | 0.8 | 0 | 0.8 |
+| toolbox | 51,529 | 9.0 | 0.2 | 0.1 | 0.2 | 9.5 |
 
 ## Roadmap
 

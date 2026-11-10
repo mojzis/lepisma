@@ -35,8 +35,19 @@ def test_noun_stack(lint):
     assert '"pipeline configuration validation error' in w.message
 
 
-def test_two_nouns_are_fine(lint):
-    assert "R2" not in rules(lint("The error message is short."))
+def test_three_noun_technical_terms_are_fine(lint):
+    assert "R2" not in rules(lint("The server listens on a Unix domain socket."))
+
+
+def test_hyphenated_name_counts_as_one_noun(lint):
+    # Without merging, "event - store connection pool" would count as 4 nouns.
+    assert "R2" not in rules(lint("Check the event-store connection pool."))
+    (w,) = lint("Check the event-store connection pool size.")
+    assert w.message.startswith('Stack of 4 nouns ("event-store connection pool size")')
+
+
+def test_have_needs_of_to_count_as_weak(lint):
+    assert "R4" not in rules(lint("The index has every reference."))
 
 
 def test_code_breaks_a_noun_stack(lint):

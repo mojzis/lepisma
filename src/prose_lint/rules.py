@@ -117,10 +117,32 @@ def long_sentence(block: Block, doc: Doc, cfg: Config) -> Iterator[Finding]:
         )
 
 
+def _is_joiner(tok: Token) -> bool:
+    """A hyphen or slash glued to both neighbours, as in "ty-find" or "read/write"."""
+    doc = tok.doc
+    return (
+        tok.text in {"-", "/"}
+        and 0 < tok.i < len(doc) - 1
+        and not doc[tok.i - 1].whitespace_
+        and not tok.whitespace_
+    )
+
+
+def _is_noun(block: Block, tok: Token) -> bool:
+    return (
+        tok.pos_ in NOUNS
+        and any(c.isalpha() for c in tok.text)
+        and not block.in_code(tok.idx, tok.idx + len(tok))
+    )
+
+
 def _noun_runs(block: Block, sent: Span) -> Iterator[list[Token]]:
     run: list[Token] = []
     for tok in sent:
-        if tok.pos_ in NOUNS and not block.in_code(tok.idx, tok.idx + len(tok)):
+        if _is_noun(block, tok):
+            run.append(tok)
+            continue
+        if run and _is_joiner(tok) and _is_noun(block, tok.nbor(1)):
             run.append(tok)
             continue
         if run:
@@ -130,13 +152,28 @@ def _noun_runs(block: Block, sent: Span) -> Iterator[list[Token]]:
         yield run
 
 
+def _noun_count(group: list[Token]) -> int:
+    """Nouns in a group, counting "ty-find" as one."""
+    return sum(
+        1
+        for t in group
+        if not _is_joiner(t) and not (t.i > 0 and _is_joiner(t.doc[t.i - 1]))
+    )
+
+
 def _linked(run: list[Token]) -> list[list[Token]]:
     """Split a run where a noun does not modify a later noun in the same run."""
     groups: list[list[Token]] = [[]]
     for idx, tok in enumerate(run):
         groups[-1].append(tok)
         last = idx == len(run) - 1
-        if not last and not (run[0].i <= tok.head.i <= run[-1].i):
+        inside = run[0].i <= tok.head.i <= run[-1].i
+        if (
+            not last
+            and not inside
+            and not _is_joiner(tok)
+            and not _is_joiner(run[idx + 1])
+        ):
             groups.append([])
     return groups
 
@@ -149,17 +186,18 @@ def noun_stack(block: Block, doc: Doc, cfg: Config) -> Iterator[Finding]:
     for sent in doc.sents:
         for run in _noun_runs(block, sent):
             for group in _linked(run):
-                if len(group) < rule.min_nouns:
+                count = _noun_count(group)
+                if count < rule.min_nouns:
                     continue
                 if rule.ignore_all_propn and all(t.pos_ == "PROPN" for t in group):
                     continue
-                strong = len(group) >= rule.strong_nouns
-                phrase = " ".join(t.text for t in group)
+                strong = count >= rule.strong_nouns
+                phrase = "".join(t.text_with_ws for t in group).strip()
                 yield Finding(
                     rule="R2",
                     offset=group[0].idx,
                     message=(
-                        f'Stack of {len(group)} nouns ("{phrase}"); '
+                        f'Stack of {count} nouns ("{phrase}"); '
                         "rephrase with a verb or preposition."
                     ),
                     severity="strong" if strong else "warning",
@@ -222,8 +260,9 @@ def _hidden_verb(tok: Token, cfg: Config) -> Token | None:
         if not _is_nominal(child, cfg):
             continue
         has_of = any(c.dep_ == "prep" and c.lower_ == "of" for c in child.children)
-        # "is the implementation of X" is weak; "is a solution" is just a noun.
-        if tok.lemma_.lower() == "be" and not has_of:
+        # "is the implementation of X" is weak; "is a solution" is just a noun,
+        # and "has every reference" is plain possession.
+        if tok.lemma_.lower() in {"be", "have"} and not has_of:
             continue
         return child
     return None

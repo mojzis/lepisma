@@ -17,7 +17,7 @@ ignore = ["corpus/**", "CHANGELOG.md"]
 # strong_words = 35
 
 [rules.noun-stack]         # R2
-# min_nouns = 3
+# min_nouns = 4
 # strong_nouns = 5
 # ignore_all_propn = true
 

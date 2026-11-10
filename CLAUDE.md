@@ -19,8 +19,9 @@ README.md for the design, rules and roadmap.
 
 ## Tuning a rule
 
-Run `uv run prose-lint stats corpus/bad corpus/good` before and after a change to a
-rule or threshold. A good change keeps bad docs high and good docs low. Add a test to
+Run `uv run prose-lint stats corpus/bad corpus/good corpus/toolbox` before and after
+a change to a rule or threshold. A good change keeps bad docs high, and good and
+toolbox docs low. Add a test to
 `tests/test_rules.py` for each false positive you fix.
 
 ## Commands

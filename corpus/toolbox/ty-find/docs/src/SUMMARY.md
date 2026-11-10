@@ -1,0 +1,31 @@
+# Summary
+
+[Introduction](index.md)
+
+# Getting Started
+
+- [Setup with Claude Code](setup.md)
+- [How It Works](how-it-works.md)
+- [Relationship to ty](relationship-to-ty.md)
+
+# Commands
+
+- [Overview](commands/overview.md)
+- [show](commands/show.md)
+- [find](commands/find.md)
+- [refs](commands/refs.md)
+- [members](commands/members.md)
+- [calls](commands/calls.md)
+- [list](commands/list.md)
+- [mcp](commands/mcp.md)
+- [daemon](commands/daemon.md)
+- [guide](commands/guide.md)
+
+# MCP
+
+- [MCP server](mcp.md)
+
+# Reference
+
+- [Performance](performance.md)
+- [Troubleshooting](troubleshooting.md)
