@@ -4,6 +4,14 @@ Fast, soft feedback on Markdown docs that are hard to read. It targets the habit
 of text written by Claude. Warnings go back to Claude so it can rewrite the text.
 **Warnings never block a commit.**
 
+Agents: start with the built-in guide. It picks setup or triage from the repo state.
+
+```
+uvx --from git+https://github.com/mojzis/prose-linter prose-lint guide
+```
+
+Sample output:
+
 ```
 docs/setup.md:12:1 R1 Sentence has 31 words; consider splitting.
 docs/setup.md:14:22 R2 Stack of 4 nouns ("pipeline configuration validation error"); rephrase with a verb or preposition.
@@ -61,6 +69,7 @@ it runs even when the rest of the hook ends in `exec`.
 
 | Command | What it does |
 | --- | --- |
+| `prose-lint guide [setup\|triage\|tune]` | Print instructions for an agent. With no topic it picks one from the current directory. |
 | `prose-lint check PATH...` | Lint files or folders in-process, no server. `--format json`, `--strict` exits 1 on warnings. |
 | `prose-lint stats PATH...` | Warnings per 1,000 words per file and rule, one table per path. |
 | `prose-lint measure PATH...` | Readability stats for whole docs. Writes Parquet tables and `report.md` to `--out` (default `stats/`). Needs the `measure` extra. |

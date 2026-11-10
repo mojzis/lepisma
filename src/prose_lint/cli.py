@@ -9,6 +9,8 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from prose_lint.guide import TOPICS
+
 if TYPE_CHECKING:
     from prose_lint.config import Config
     from prose_lint.models import FileResult
@@ -171,13 +173,45 @@ def cmd_install_hook(_args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_guide(args: argparse.Namespace) -> int:
+    """Print the agent guide for a topic, auto-picked when none is given."""
+    from prose_lint.guide import detect, render  # noqa: PLC0415
+
+    if args.topic:
+        topic, head = args.topic, f"# prose-lint guide: {args.topic}"
+    else:
+        topic, reason = detect(Path.cwd())
+        head = f"# prose-lint guide: {reason} -> {topic}"
+    try:
+        sys.stdout.write(f"{head}\n\n{render(topic)}")
+        sys.stdout.flush()
+    except OSError:
+        return 1
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Argument parser for all subcommands."""
     parser = argparse.ArgumentParser(
         prog="prose-lint",
-        description="Soft warnings for hard-to-read Markdown prose.",
+        description="Soft warnings for hard-to-read Markdown prose. "
+        "Run `prose-lint guide` first.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
+
+    p = sub.add_parser(
+        "guide",
+        help="instructions for an agent: run this first",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description="Print Markdown instructions for an agent and exit 0.\n\n"
+        "topics:\n"
+        + "".join(f"  {name:<8}{line}\n" for name, line in TOPICS.items())
+        + "\nWith no topic, pick one from files: triage when prose-lint.toml is\n"
+        "in the current directory or above, or pyproject.toml here has a\n"
+        "`prose-lint hook` step; otherwise setup.",
+    )
+    p.add_argument("topic", nargs="?", choices=list(TOPICS))
+    p.set_defaults(func=cmd_guide)
 
     p = sub.add_parser("check", help="lint files or directories in-process")
     p.add_argument("paths", nargs="+")
