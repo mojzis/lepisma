@@ -29,8 +29,26 @@ def test_bad_docs_score_far_worse_than_good_docs(nlp):
     assert bad > 5 * good
 
 
+OLD_STYLE = ("R1", "R2", "R3", "R4", "R5", "R6", "R7")
+
+
+def _total(found: dict[str, float], *, old: bool) -> float:
+    return sum(n for r, n in found.items() if r != "all" and (r in OLD_STYLE) == old)
+
+
 def test_real_toolbox_docs_stay_quiet(nlp):
-    """Real docs, mostly fine: catches rules that start flagging normal prose."""
+    """Real docs, mostly fine: catches old-style rules that flag normal prose."""
     found = densities("toolbox", nlp)
-    assert found["all"] < 12
+    assert _total(found, old=True) < 12
     assert max(found.get(rule, 0) for rule in ("R2", "R3", "R4")) < 1
+
+
+def test_style_rules_find_the_toolbox_and_spare_the_good_docs(nlp):
+    """R8 and later target how Claude writes now. The toolbox docs are real
+    Claude output, so they are the positive set for these rules, and the good
+    docs are the quiet one. A rule that is tuned down until the toolbox goes
+    silent fails here."""
+    toolbox = _total(densities("toolbox", nlp), old=False)
+    good = _total(densities("good", nlp), old=False)
+    assert toolbox > 3
+    assert good < 1

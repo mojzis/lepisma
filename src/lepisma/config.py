@@ -179,6 +179,20 @@ class TidySummary:
 
 
 @dataclass(slots=True)
+class InterruptionLoad:
+    """R8 settings."""
+
+    enabled: bool = True
+    # Dashes, parentheses, semicolons and mid-sentence colons in one sentence.
+    warn_at: int = 2
+    strong_at: int = 3
+    # A dash or colon after this few words separates a label ("`name` - text").
+    label_words: int = 4
+    # A parenthesis with fewer words is a gloss ("`-d` (docs)"), not an aside.
+    min_paren_words: int = 3
+
+
+@dataclass(slots=True)
 class Server:
     """Local spaCy server settings."""
 
@@ -199,6 +213,7 @@ class Config:
     late_verb: LateVerb = field(default_factory=LateVerb)
     vague_this: VagueThis = field(default_factory=VagueThis)
     tidy_summary: TidySummary = field(default_factory=TidySummary)
+    interruption_load: InterruptionLoad = field(default_factory=InterruptionLoad)
     server: Server = field(default_factory=Server)
 
     def is_ignored(self, path: str) -> bool:
@@ -218,6 +233,7 @@ RULES: dict[str, tuple[str, str]] = {
     "R5": ("late-verb", "late_verb"),
     "R6": ("vague-this", "vague_this"),
     "R7": ("tidy-summary", "tidy_summary"),
+    "R8": ("interruption-load", "interruption_load"),
 }
 
 

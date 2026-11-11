@@ -44,3 +44,9 @@ ignore = ["corpus/**", "CHANGELOG.md"]
 
 [rules.tidy-summary]       # R7
 # openers = ["overall", "in summary", "this ensures", ...]
+
+[rules.interruption-load]  # R8
+# warn_at = 2              # dashes, parentheses, semicolons and colons in a sentence
+# strong_at = 3
+# label_words = 4          # a dash or colon after this few words marks a label
+# min_paren_words = 3      # a shorter parenthesis is a gloss, not an aside

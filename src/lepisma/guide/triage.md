@@ -11,7 +11,7 @@ uv run lepisma check --format json docs/setup.md
 
 ### What each rule means
 
-<!-- lepisma: disable R2 R3 R4 R5 R6 R7 -->
+<!-- lepisma: disable R2 R3 R4 R5 R6 R7 R8 -->
 - **R1 long-sentence**: over {{long_sentence.max_words}} words, strong over {{long_sentence.strong_words}}.
   Split it into two or three sentences.
 - **R2 noun-stack**: {{noun_stack.min_nouns}} or more nouns modify each other
@@ -27,7 +27,11 @@ uv run lepisma check --format json docs/setup.md
   ("This cache allows ...") or make the actor the subject ("The cache lets ...").
 - **R7 tidy-summary**: a paragraph ends with "Overall, ..." or "This ensures ...".
   Cut the sentence, or replace it with a fact the paragraph has not stated.
-<!-- lepisma: enable R2 R3 R4 R5 R6 R7 -->
+- **R8 interruption-load**: {{interruption_load.warn_at}} or more dashes, parentheses, semicolons or
+  mid-sentence colons in one sentence, strong at {{interruption_load.strong_at}}. Move each aside into its
+  own sentence. Do not swap the marks for commas: read the result, and keep the
+  aside where the split reads worse.
+<!-- lepisma: enable R2 R3 R4 R5 R6 R7 R8 -->
 
 ### Remedy ladder (take the first rule that applies)
 

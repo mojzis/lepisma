@@ -43,7 +43,7 @@ def test_extra_stoplist_extends_defaults():
 @pytest.mark.parametrize(
     "data",
     [
-        {"rules": {"R9": {}}},
+        {"rules": {"R99": {}}},
         {"rules": {"R1": {"max_wordz": 3}}},
         {"rules": {"R1": {"max_words": "many"}}},
         {"rules": {"R1": {"enabled": 1}}},

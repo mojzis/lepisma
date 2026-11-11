@@ -20,3 +20,6 @@ The cache keeps the last ten results. This allows faster lookups. Old results dr
 
 <!-- R7 -->
 The importer reads each row and writes it to the table. Overall, the import is simple.
+
+<!-- R8 -->
+The cache — a plain dict — holds the parsed files (one for each path); nothing else is kept.

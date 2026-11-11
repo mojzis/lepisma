@@ -9,7 +9,8 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
-from lepisma.rules import is_word
+from lepisma.config import Config
+from lepisma.rules import interrupter_counts, is_word
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -17,6 +18,8 @@ if TYPE_CHECKING:
     from spacy.tokens import Doc, Span, Token
 
     from lepisma.markdown import Block
+
+_DEFAULTS = Config()
 
 COLUMNS = (
     "em_dashes",
@@ -38,19 +41,14 @@ COLUMNS = (
     "block_bold_spans",
 )
 
-LABEL_WORDS = 4  # a dash or colon after this few words separates a label
 MIN_COLON_TAIL = 2  # words after a colon for it to count as mid-sentence
 PUNCHLINE_WORDS = 6
 PUNCHLINE_AFTER = 12
 MIN_ACRONYM = 2
 
-_DASH = re.compile("\u2014|\\s--\\s|\\s\u2013\\s")  # em dash, --, spaced en dash
-_PAREN = re.compile(r"\((?!s\))")
-_COLON = re.compile(r":(?=\s+\S)")
 _ARROW = re.compile("->|=>|\u2192|\u21d2")
 _COMPOUND = re.compile(r"\b[A-Za-z]+(?:-[A-Za-z]+){2,}\b")
 _BOLD = re.compile(r"(\*\*|__)(?=\S)(.+?)(?<=\S)\1")
-_WORD = re.compile(r"[A-Za-z]")
 
 _CONTRAST = re.compile(
     r"\bnot\b[^.;:()]{1,60}?\bbut\b"  # not X but Y
@@ -115,42 +113,16 @@ KNOWN_ACRONYMS = frozenset(
 )  # fmt: skip
 
 
-def _words_in(text: str) -> int:
-    return sum(1 for w in text.split() if _WORD.search(w))
-
-
-def _is_item(block: Block, sent: Span) -> bool:
-    return block.kind == "list" or sent.start_char in block.breaks
-
-
 def interrupters(block: Block, sent: Span) -> dict[str, int]:
-    """Marks that break into a sentence: dashes, parentheses, semicolons, colons.
-
-    A dash or colon right after a short label ("`name` \u2014 description",
-    "Note: ...") separates the label and does not count. Neither does a colon
-    that only introduces code or ends the sentence.
-    """
-    text = sent.text
-    item = _is_item(block, sent)
-    dashes = [
-        m
-        for m in _DASH.finditer(text)
-        if not (item and _words_in(text[: m.start()]) <= LABEL_WORDS)
-    ]
-    colons = [
-        m
-        for m in _COLON.finditer(text)
-        if _words_in(text[: m.start()]) > LABEL_WORDS
-        and _words_in(text[m.end() :].replace("CODE", "")) >= MIN_COLON_TAIL
-    ]
-    counts = {
-        "em_dashes": len(dashes),
-        "semicolons": text.count(";"),
-        "parentheticals": len(_PAREN.findall(text)),
-        "mid_colons": len(colons),
+    """R8's counts of the marks that break into a sentence, under default settings."""
+    counts = interrupter_counts(block, sent, _DEFAULTS)
+    return {
+        "em_dashes": counts["dashes"],
+        "semicolons": counts["semicolons"],
+        "parentheticals": counts["parentheses"],
+        "mid_colons": counts["colons"],
+        "interrupters": sum(counts.values()),
     }
-    counts["interrupters"] = sum(counts.values())
-    return counts
 
 
 def contrast_frames(text: str, prev: str = "") -> int:
@@ -180,7 +152,11 @@ def emphasis(block: Block, sent: Span) -> dict[str, int]:
 
 def _fragment(block: Block, sent: Span, words: int) -> tuple[int, int]:
     """(no verb, no subject) for a paragraph sentence; list items are exempt."""
-    if block.kind != "paragraph" or _is_item(block, sent) or words < MIN_COLON_TAIL:
+    if (
+        block.kind != "paragraph"
+        or sent.start_char in block.breaks
+        or words < MIN_COLON_TAIL
+    ):
         return 0, 0
     if not any(t.pos_ in {"VERB", "AUX"} for t in sent):
         return 1, 0

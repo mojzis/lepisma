@@ -647,6 +647,97 @@ def tidy_summary(block: Block, doc: Doc, cfg: Config) -> Iterator[Finding]:
     )
 
 
+_DASH = re.compile("\u2014|\\s--\\s|\\s\u2013\\s")  # em dash, --, spaced en dash
+_PAREN = re.compile(r"\(([^()]*)\)?")
+_COLON = re.compile(r":(?=\s+\S)")
+_QUOTED = re.compile('"[^"]{1,200}"|\u201c[^\u201d]{1,200}\u201d')
+_BOLD_LEAD = re.compile(r"^(\*\*|__)(.+?)\1")
+_HAS_LETTER = re.compile(r"[A-Za-z]")
+_MIN_COLON_TAIL = 2  # words after a colon for it to sit mid-sentence
+_MARK_NAMES = {
+    "dashes": ("dash", "dashes"),
+    "parentheses": ("parenthesis", "parentheses"),
+    "semicolons": ("semicolon", "semicolons"),
+    "colons": ("colon", "colons"),
+}
+
+
+def _word_count(text: str) -> int:
+    return sum(1 for w in text.split() if _HAS_LETTER.search(w))
+
+
+def interrupter_counts(block: Block, sent: Span, cfg: Config) -> dict[str, int]:
+    """Marks that break into a sentence: dashes, parentheses, semicolons, colons.
+
+    Not counted: a dash or colon right after a short label ("`name` - text",
+    "Note: ..."), a colon that ends the sentence or only introduces code, a
+    parenthesis that holds a short gloss ("`-d` (docs)"), and marks inside
+    double quotes.
+    """
+    rule = cfg.interruption_load
+    # Quoted text is an example, not part of the sentence's own structure.
+    text = _QUOTED.sub('"QUOTE"', sent.text)
+    item = block.kind == "list" or sent.start_char in block.breaks
+    # "- **Long bold label** - text": the mark after the bold span is a separator.
+    label_tokens = 0
+    if sent.start_char == 0 and (m := _BOLD_LEAD.match(block.raw[0])):
+        label_tokens = len(m.group(2).split())
+
+    def is_label(pos: int, *, any_block: bool) -> bool:
+        before = text[:pos]
+        if before.strip() and len(before.split()) <= label_tokens:
+            return True
+        return (item or any_block) and _word_count(before) <= rule.label_words
+
+    dashes = sum(
+        1 for m in _DASH.finditer(text) if not is_label(m.start(), any_block=False)
+    )
+    colons = sum(
+        1
+        for m in _COLON.finditer(text)
+        if not is_label(m.start(), any_block=True)
+        and _word_count(text[m.end() :].replace("CODE", "")) >= _MIN_COLON_TAIL
+    )
+    parens = sum(
+        1
+        for m in _PAREN.finditer(text)
+        if _word_count(m.group(1)) >= rule.min_paren_words
+    )
+    # A semicolon that ends a list item is a terminator, not a break.
+    semicolons = text.rstrip().rstrip(";").count(";")
+    return {
+        "dashes": dashes,
+        "parentheses": parens,
+        "semicolons": semicolons,
+        "colons": colons,
+    }
+
+
+def interruption_load(block: Block, doc: Doc, cfg: Config) -> Iterator[Finding]:
+    """R8: one sentence broken up by several dashes, parentheses and the like."""
+    rule = cfg.interruption_load
+    if block.kind == "heading":
+        return
+    for sent in doc.sents:
+        counts = interrupter_counts(block, sent, cfg)
+        total = sum(counts.values())
+        if total < rule.warn_at:
+            continue
+        parts = ", ".join(
+            f"{n} {_MARK_NAMES[kind][n > 1]}" for kind, n in counts.items() if n
+        )
+        first = next((t for t in sent if not t.is_space), sent[0])
+        yield Finding(
+            rule="R8",
+            offset=first.idx,
+            message=(
+                f"{total} interruptions in one sentence ({parts}); "
+                "give each aside its own sentence."
+            ),
+            severity="strong" if total >= rule.strong_at else "warning",
+        )
+
+
 RuleFn = Callable[["Block", "Doc", "Config"], Iterator[Finding]]
 
 RULE_FUNCS: dict[str, RuleFn] = {
@@ -657,4 +748,5 @@ RULE_FUNCS: dict[str, RuleFn] = {
     "R5": late_verb,
     "R6": vague_this,
     "R7": tidy_summary,
+    "R8": interruption_load,
 }

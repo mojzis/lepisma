@@ -121,6 +121,7 @@ The server log is in `~/.cache/lepisma/server.log`.
 | R5 | `late-verb` | more than 14 words come before the main verb | more than 20 |
 | R6 | `vague-this` | a bare "This" or "These" is the subject of an action verb ("This allows ...") | never |
 | R7 | `tidy-summary` | a paragraph's last sentence opens with "Overall", "In summary", "This ensures" and the like | never |
+| R8 | `interruption-load` | one sentence holds 2 or more dashes, parentheses, semicolons or mid-sentence colons | 3 or more |
 
 Details:
 
@@ -168,10 +169,22 @@ Details:
   Sentences with no verb at the root, like list fragments, are skipped. At 12 words
   it flagged 2.4 per 1,000 words in the toolbox docs; at 14 it is under 1.
 <!-- lepisma: disable-next R3 -->
-- **R6** skips "This flag allows" (the noun names the referent) and "This is"
-  (plain linking verb). A paragraph's closing "This ensures ..." is left to R7.
+- **R6** skips "This flag allows", where the noun names the referent. It also skips
+  "This is", a plain linking verb. A paragraph's closing "This ensures ..." is left to R7.
 - **R7** needs a paragraph of two or more sentences. The opener list is
   `openers` in the config.
+- **R8** counts em dashes, `--`, spaced en dashes, parentheses, semicolons and
+  colons that have words on both sides. A pair of dashes counts as two. It skips
+  marks that do not interrupt:
+  - a dash or colon after a label of up to `label_words` words, as in "`name` -
+    the symbol to find". A bold label can be any length.
+  - a parenthesis with fewer than `min_paren_words` words, as in "`-d` (docs)".
+  - a colon that ends the sentence or only introduces code.
+  - a semicolon that ends a list item.
+  - any mark inside double quotes, since quoted text is an example.
+
+  About half of the R8 hits in the toolbox docs are in sentences of 25 words or
+  fewer, which R1 never sees.
 
 ## Measuring whole docs
 
@@ -282,27 +295,29 @@ The baseline test set lives in [`corpus/`](corpus/):
 - `toolbox/` holds the real docs of the aesop tools (gerenuk, madoqua, biston,
   zorilla, coati, ty-find). They are unlabeled. The test checks that R2 to R4 stay
   under 1 per 1,000 words there, which catches rules that start flagging normal
-  prose. `scripts/sync-toolbox-corpus.sh` refreshes the copy.
+  prose. For R8 and later the test runs the other way. Those rules target how
+  Claude writes now, so the toolbox docs must score above 3 per 1,000 words and
+  the good docs below 1. `scripts/sync-toolbox-corpus.sh` refreshes the copy.
 
 Swap in 10 to 20 real hard-to-read docs from your team for `bad/` before tuning
 further.
 
 Current numbers (warnings per 1,000 words):
 
-| Set | Words | R1 | R2 | R3 | R4 | R5 | R6 | R7 | Total |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| bad | 2,698 | 7.4 | 3.3 | 41.9 | 8.5 | 0 | 0 | 3.3 | 64.5 |
-| good | 1,235 | 0 | 0 | 0.8 | 0 | 0 | 0 | 0 | 0.8 |
-| toolbox | 51,529 | 9.0 | 0.1 | 0.0 | 0.2 | 0.9 | 0.2 | 0.0 | 10.3 |
+| Set | Words | R1 | R2 | R3 | R4 | R5 | R6 | R7 | R8 | Total |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| bad | 2,698 | 7.4 | 3.3 | 41.9 | 8.5 | 0 | 0 | 3.3 | 0.4 | 64.9 |
+| good | 1,235 | 0 | 0 | 0.8 | 0 | 0 | 0 | 0 | 0 | 0.8 |
+| toolbox | 51,463 | 9.0 | 0.1 | 0.0 | 0.2 | 0.8 | 0.2 | 0.0 | 3.9 | 14.2 |
 
 The same sets, measured for the newer patterns with `lepisma measure` (per 1,000
 words unless noted):
 
 | Measure | bad | good | toolbox |
 | --- | --- | --- | --- |
-| Em dashes | 1.2 | 0 | 11.2 |
-| All interrupters | 2.8 | 2.7 | 30.9 |
-| Sentences with 2 or more interrupters | 1 | 0 | 287 of 3,358 |
+| Em dashes | 1.2 | 0 | 10.9 |
+| All interrupters | 2.8 | 2.7 | 25.3 |
+| Sentences with 2 or more interrupters | 1 | 0 | 203 of 3,358 |
 | Contrast frames | 0.4 | 0.9 | 4.8 |
 | Figurative terms | 0 | 0 | 5.0 |
 | Sincerity words | 0 | 0 | 2.2 |
@@ -315,7 +330,7 @@ either synthetic set. The next rules target that gap.
 
 ## Roadmap
 
-1. ~~Baseline test set~~ (placeholders; swap in real docs)
+1. ~~Baseline test set~~ (placeholders, to be swapped for real docs)
 2. ~~Four starter rules~~
 3. ~~Commit hook in warn-only mode~~
 4. Feedback loop: rewrite with Claude, then ask people whether the result reads better.
