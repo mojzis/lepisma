@@ -28,6 +28,14 @@ from lepisma import markdown
 from lepisma.config import Config
 from lepisma.engine import load_nlp, parse_blocks
 from lepisma.rules import habit_hits, is_nominal, is_word, noun_count, noun_runs
+from lepisma.signals import (
+    COLUMNS as SIGNALS,
+)
+from lepisma.signals import (
+    contrast_frames,
+    sentence_signals,
+    unexpanded_acronyms,
+)
 from lepisma.textstats import (
     dependency_distance,
     doc_dependency_distance,
@@ -47,6 +55,7 @@ if TYPE_CHECKING:
 MIN_LIST_WORDS = 4  # list items shorter than this are fragments, not sentences
 LONG = 25
 VERY_LONG = 35
+INTERRUPTED = 2  # dashes, parentheses, semicolons and colons in one sentence
 POS_TAGS = ("NOUN", "VERB", "ADJ", "ADV", "ADP")
 READABILITY = ("flesch_reading_ease", "flesch_kincaid_grade", "gunning_fog", "lix")
 _DASH = re.compile("\u2014|\\s--\\s|\\s\u2013\\s")  # em dash, --, spaced en dash
@@ -65,6 +74,7 @@ class _Section:
     heading_line: int
     lines: list[str]
     blocks: list[tuple[Block, Doc]] = field(default_factory=list)
+    heading_contrast: int = 0  # contrast frames in the heading itself
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,7 +120,11 @@ class Measurer:
         by_file: dict[str, list[tuple[Block, Doc]]] = {}
         for s in sections:
             by_file.setdefault(s.path, []).extend(s.blocks)
-        file_td = [{"path": p, **self._doc_metrics(b)} for p, b in by_file.items() if b]
+        file_td = [
+            {"path": p, **self._doc_metrics(b), **_acronyms(b)}
+            for p, b in by_file.items()
+            if b
+        ]
         heads = pl.DataFrame(
             [
                 {
@@ -118,6 +132,7 @@ class Measurer:
                     "section": s.index,
                     "heading_path": s.heading_path,
                     "heading_line": s.heading_line,
+                    "heading_contrast_frames": s.heading_contrast,
                 }
                 for s in sections
                 if s.blocks
@@ -127,14 +142,20 @@ class Measurer:
                 "section": pl.Int64,
                 "heading_path": pl.String,
                 "heading_line": pl.Int64,
+                "heading_contrast_frames": pl.Int64,
             },
         )
         sec_keys = ["path", "section"]
         section_df = heads.join(
             self._aggregate(sentences, sec_keys), on=sec_keys, how="inner"
         ).join(_frame(sec_td, sec_keys), on=sec_keys, how="left")
-        file_df = self._aggregate(sentences, ["path"]).join(
-            _frame(file_td, ["path"]), on="path", how="left"
+        in_headings = heads.group_by("path").agg(
+            pl.col("heading_contrast_frames").sum()
+        )
+        file_df = (
+            self._aggregate(sentences, ["path"])
+            .join(_frame(file_td, ["path"]), on="path", how="left")
+            .join(in_headings, on="path", how="left")
         )
         return Measurement(
             sentences=sentences,
@@ -178,6 +199,7 @@ class Measurer:
                         block.position(0)[0],
                         lines,
                     )
+                    sec.heading_contrast = contrast_frames(block.text)
                     sections.append(sec)
                 elif self._keep(block):
                     pending.append((sec, block))
@@ -194,6 +216,7 @@ class Measurer:
             "section": pl.Int64,
             "line": pl.Int64,
             "col": pl.Int64,
+            "kind": pl.String,
             "text": pl.String,
             "source": pl.String,
             "words": pl.Int64,
@@ -206,6 +229,7 @@ class Measurer:
             "dashes": pl.Int64,
             "nominalizations": pl.Int64,
             "habit_total": pl.Int64,
+            **dict.fromkeys(SIGNALS, pl.Int64),
         }
         schema.update(dict.fromkeys(map(habit_column, self.habit_words), pl.Int64))
         return schema
@@ -214,6 +238,8 @@ class Measurer:
         self, sec: _Section, block: Block, doc: Doc
     ) -> Iterable[dict[str, Any]]:
         hits = habit_hits(block, doc, self.cfg)
+        prev: Span | None = None
+        prev_words = 0
         for sent in doc.sents:
             words = [t for t in sent if is_word(t)]
             if all(block.in_code(t.idx, t.idx + len(t)) for t in words):
@@ -224,11 +250,14 @@ class Measurer:
             in_sent = Counter(
                 w for off, w in hits if sent.start_char <= off < sent.end_char
             )
+            signals = sentence_signals(block, sent, len(words), prev, prev_words)
+            prev, prev_words = sent, len(words)
             yield {
                 "path": sec.path,
                 "section": sec.index,
                 "line": line,
                 "col": col,
+                "kind": block.kind,
                 "text": text,
                 "source": _source(sec.lines, block, first.idx, words[-1]),
                 "words": len(words),
@@ -243,6 +272,7 @@ class Measurer:
                 "dashes": len(_DASH.findall(text)),
                 "nominalizations": sum(1 for t in sent if is_nominal(t, self.cfg)),
                 "habit_total": sum(in_sent.values()),
+                **signals,
                 **{habit_column(w): in_sent[w] for w in self.habit_words},
             }
 
@@ -281,6 +311,14 @@ class Measurer:
             ),
             (pl.col("habit_total").sum() * 1000 / words.sum()).alias("habit_per_1k"),
             *[(pl.col(c).sum() * 1000 / words.sum()).alias(c) for c in habit_cols],
+            *[
+                (pl.col(c).sum() * 1000 / words.sum()).alias(f"{c}_per_1k")
+                for c in SIGNALS
+            ],
+            (pl.col("interrupters") >= INTERRUPTED).mean().alias("share_interrupted"),
+            ((pl.col("interrupters") >= INTERRUPTED) & (words <= LONG))
+            .mean()
+            .alias("share_interrupted_short"),
         )
 
 
@@ -315,6 +353,11 @@ def _source(lines: list[str], block: Block, start: int, last: Any) -> str:
         return lines[l1 - 1][c1 - 1 : stop]
     parts = [lines[l1 - 1][c1 - 1 :], *lines[l1 : l2 - 1], lines[l2 - 1][:stop]]
     return " ".join(p.strip() for p in parts)
+
+
+def _acronyms(blocks: list[tuple[Block, Doc]]) -> dict[str, Any]:
+    names = unexpanded_acronyms(blocks)
+    return {"acronyms_unexpanded": len(names), "acronym_list": " ".join(names)}
 
 
 def _frame(rows: list[dict[str, Any]], keys: list[str]) -> pl.DataFrame:

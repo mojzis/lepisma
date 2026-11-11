@@ -197,6 +197,26 @@ It writes four files:
 - `report.md`: medians and p90s, the 15 hardest files and sections, the 30 hardest
   sentences, and which metrics spread enough to make good lint thresholds.
 
+The tables also count the patterns that current Claude models lean on. Each is
+a column per sentence, and a rate per 1,000 words per section and file:
+
+- Interrupters: em dashes, semicolons, parentheses and colons in the middle of a
+  sentence. `share_interrupted` is the share of sentences with two or more.
+  A dash or colon after a short label is not counted.
+- Contrast frames: "not X but Y", "X, not Y", "isn't X. It's Y" and "rather than".
+  Headings are counted too, in `heading_contrast_frames`.
+- Emphasis: sincerity words ("genuinely", "exactly"), importance flags ("this
+  matters"), figurative terms ("seam", "verdict") and bold spans per block.
+- Compression: arrows in prose, compounds of three or more hyphenated words, and
+  paragraph sentences with no verb or no subject.
+- Short sentences that follow a long one, sentence-final ", making ..." clauses,
+  and things that "want" or "know".
+- `acronyms_unexpanded` and `acronym_list` per file: acronyms that are not spelled
+  out near their first use.
+
+These columns measure. They are not rules yet. `signals.py` defines them, and
+[Background](#background) lists the research behind them.
+
 It uses the same parser as the linter, and the R2 to R4 definitions of noun runs,
 nominalizations and habit words. Headings only name sections. List items under 4
 words are skipped. Readability, dependency distance, part-of-speech shares and
@@ -275,6 +295,24 @@ Current numbers (warnings per 1,000 words):
 | good | 1,235 | 0 | 0 | 0.8 | 0 | 0 | 0 | 0 | 0.8 |
 | toolbox | 51,529 | 9.0 | 0.1 | 0.0 | 0.2 | 0.9 | 0.2 | 0.0 | 10.3 |
 
+The same sets, measured for the newer patterns with `lepisma measure` (per 1,000
+words unless noted):
+
+| Measure | bad | good | toolbox |
+| --- | --- | --- | --- |
+| Em dashes | 1.2 | 0 | 11.2 |
+| All interrupters | 2.8 | 2.7 | 30.9 |
+| Sentences with 2 or more interrupters | 1 | 0 | 287 of 3,358 |
+| Contrast frames | 0.4 | 0.9 | 4.8 |
+| Figurative terms | 0 | 0 | 5.0 |
+| Sincerity words | 0 | 0 | 2.2 |
+| Bold spans | 0.8 | 0.9 | 10.3 |
+| Files with an unexpanded acronym | 2 of 10 | 3 of 6 | 47 of 114 |
+
+The rules catch the old corporate style in `bad/`. The toolbox docs are real Claude
+output and score low on R1 to R7, yet they carry ten times the interrupters of
+either synthetic set. The next rules target that gap.
+
 ## Roadmap
 
 1. ~~Baseline test set~~ (placeholders; swap in real docs)
@@ -287,6 +325,29 @@ Current numbers (warnings per 1,000 words):
    Add an optional LLM judge in CI.
 6. Port the useful rules to Rust (harper-core and Weir) if speed or distribution
    becomes a problem.
+
+## Background
+
+The goal is prose that people find easy to read. It is not AI detection. A
+pattern earns a rule only if it costs the reader effort. These sources describe
+the patterns and how others handle them:
+
+- [Prompting Claude Fable 5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5):
+  Anthropic's own notes on how the model writes and how to steer it.
+- [AI Tells](https://graphite.io/five-percent/research/ai-tells-opus-5-5-update):
+  Graphite's counts of the constructions that mark model prose, with data.
+- [Do LLMs write like humans?](https://arxiv.org/abs/2410.16107) by Reinhart et
+  al.: grammar and style features that differ between model and human text.
+- [tropes.fyi](https://tropes.fyi/directory): a directory of named habits.
+- [claudeisms](https://github.com/archiewood/claudeisms): a word list.
+- [vale-agent-prose](https://github.com/dteirney/vale-agent-prose) and
+  [vale-llm-slop](https://github.com/Syntaf/vale-llm-slop): Vale rule sets for the
+  same problem.
+- [claude-code issue 77136](https://github.com/anthropics/claude-code/issues/77136):
+  a user report on the current style.
+
+Word lists move the problem. Banned words drop and unlisted constructions rise.
+So lepisma prefers checks on density and structure to longer lists.
 
 ## Development
 
