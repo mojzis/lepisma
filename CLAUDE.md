@@ -74,7 +74,7 @@ verified hook.
 | phase | steps |
 | --- | --- |
 | fix (rewrites and re-stages) | `ruff check --fix`, `ruff format` |
-| check (blocks) | `ruff check`, `ty check`, `biston scan --focus-args`, `zorilla check`, `gerenuk run` |
+| check (blocks) | `ruff check`, `ty check`, `biston scan --focus-args`, `zorilla check`, `gerenuk run`, `dermestes` |
 
 Whole hook runs in ~0.3 s on this repo (gerenuk ~0.27 s of that; `uv run madoqua stats`
 for current numbers). Don't commit with `--no-verify` or `MADOQUA_SKIP` to get past a
@@ -99,6 +99,9 @@ Two changes from the hook this replaced:
 - `uv run tyf find <symbol>` / `tyf refs` / `tyf list <file>` / `tyf calls` — type-aware
   symbol lookup. **Use these instead of grep** for definitions and references; grep
   cannot tell a definition from a string that happens to match.
+- `uv run dermestes --all` — abstractions with a single user (one-caller wrappers,
+  parameters nobody varies, dead code) as deletion candidates. The hook runs it in diff
+  mode; `uv run dermestes guide` explains how to triage a finding.
 - `uv run gerenuk audit <file>` — lists symbols in a module that nothing references.
 - `uv run gerenuk impacted-tests` — which tests a working-tree diff reaches, and why.
 
@@ -112,7 +115,7 @@ uv run madoqua install    # once; core.hooksPath is local config, not tracked
 ### Refreshing the toolbox
 
 ```
-uv lock --refresh --upgrade-package madoqua --upgrade-package gerenuk --upgrade-package biston --upgrade-package zorilla --upgrade-package pycoati --upgrade-package ty-find && uv sync
+uv lock --refresh --upgrade-package madoqua --upgrade-package gerenuk --upgrade-package biston --upgrade-package zorilla --upgrade-package pycoati --upgrade-package ty-find --upgrade-package dermestes && uv sync
 ```
 
 `--refresh` matters: without it uv may serve a cached index and miss a release

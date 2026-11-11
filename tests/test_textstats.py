@@ -72,10 +72,10 @@ def test_pos_proportions_of_empty_doc_are_nan(blank):
 
 def test_duplicate_ngrams_merge_overlaps(blank):
     doc = blank("a b c d e x a b c d e")
-    assert duplicate_ngram_chr_fraction(doc, 5) == pytest.approx(18 / len(doc.text))
+    assert duplicate_ngram_chr_fraction(doc) == pytest.approx(18 / len(doc.text))
     # a 6-word repeat covers the overlapping 5-grams once, not twice
     doc = blank("a b c d e f x a b c d e f")
-    assert duplicate_ngram_chr_fraction(doc, 5) == pytest.approx(22 / len(doc.text))
+    assert duplicate_ngram_chr_fraction(doc) == pytest.approx(22 / len(doc.text))
 
 
 def test_duplicate_ngrams_none_or_empty(blank):

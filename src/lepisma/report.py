@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import sys
 from collections import Counter
-from typing import TextIO
 
 from lepisma.config import RULES
 from lepisma.models import FileResult
@@ -23,10 +22,9 @@ def print_results(
     fmt: str,
     *,
     footer: bool = False,
-    out: TextIO | None = None,
 ) -> None:
     """Print warnings as ``file:line:col rule-id message`` lines or as JSON."""
-    out = out or sys.stdout
+    out = sys.stdout
     warnings = [w for r in results for w in r.warnings]
     if fmt == "json":
         words = sum(r.words for r in results)
@@ -56,9 +54,9 @@ def print_results(
         )
 
 
-def print_stats(groups: dict[str, list[FileResult]], out: TextIO | None = None) -> None:
+def print_stats(groups: dict[str, list[FileResult]]) -> None:
     """Print warnings per 1,000 words per file and per group, broken down by rule."""
-    out = out or sys.stdout
+    out = sys.stdout
     rule_ids = list(RULES)
     header = f"{'file':{NAME_W}} {'words':>6} {'per1k':>6} " + " ".join(
         f"{r:>5}" for r in rule_ids

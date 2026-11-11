@@ -234,7 +234,9 @@ class Measurer:
                 "words": len(words),
                 "dependency_distance": dependency_distance(sent),
                 "main_verb_index": _main_verb_index(sent, words),
-                "max_noun_run": _max_noun_run(block, sent),
+                "max_noun_run": max(
+                    (noun_count(run) for run in noun_runs(block, sent)), default=0
+                ),
                 "passives": sum(1 for t in sent if t.dep_ == "auxpass"),
                 "commas": text.count(","),
                 "parens": text.count("("),
@@ -257,7 +259,7 @@ class Measurer:
             "dependency_distance_mean": doc_dependency_distance(doc),
             **{f"pos_{t.lower()}": pos[t] for t in POS_TAGS},
             "noun_verb_ratio": noun / verb if verb else None,
-            "duplicate_5gram_chr_fraction": duplicate_ngram_chr_fraction(doc, 5),
+            "duplicate_5gram_chr_fraction": duplicate_ngram_chr_fraction(doc),
         }
 
     def _aggregate(self, sentences: pl.DataFrame, keys: list[str]) -> pl.DataFrame:
@@ -291,11 +293,6 @@ def _main_verb_index(sent: Span, words: list[Any]) -> int | None:
         if tok.i == root.i:
             return n
     return None
-
-
-def _max_noun_run(block: Block, sent: Span) -> int:
-    """Longest run of nouns or proper nouns; "ty-find" counts as one."""
-    return max((noun_count(run) for run in noun_runs(block, sent)), default=0)
 
 
 _CODE_END = re.compile(r"(`+).*?\1|<[^>]*>|\S+")
