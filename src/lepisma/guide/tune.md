@@ -70,7 +70,7 @@ max_per_1000 = {{contrast_frame.max_per_1000}}        # strong at twice this
 # also flag rare words that a document uses often and never defines
 rare_terms = {{undefined_term.rare_terms}}
 min_uses = {{undefined_term.min_uses}}                       # uses before a rare word counts
-# known_terms = ["shim"]           # rare words that need no definition here
+# known_terms = ["worktree"]           # rare words that need no definition here
 ```
 
 Rules can be named by ID (`R2`) or name (`noun-stack`), here and in comments:

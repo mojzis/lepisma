@@ -814,7 +814,7 @@ def contrast_frame(parsed: Parsed, cfg: Config) -> Iterator[tuple[int, Finding]]
 
 @cache
 def common_words() -> frozenset[str]:
-    """The 30,000 most frequent English words, from the bundled list."""
+    """Common English words and their inflections, from the bundled SCOWL list."""
     raw = files("lepisma").joinpath("data", "common_words.txt.gz").read_bytes()
     return frozenset(gzip.decompress(raw).decode("utf-8").split())
 

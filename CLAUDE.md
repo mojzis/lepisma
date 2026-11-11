@@ -21,8 +21,9 @@ using the CLI.
   the library API (`Measurer`). `measure_report.py` builds the scores and
   `report.md`. Both need the `measure` extra (Polars, Pyphen), so keep
   them off the lint and hook path.
-- `data/common_words.txt.gz` is the 30,000 most common English words, from
-  wordfreq (CC BY-SA 4.0). R10 reads it through `rules.common_words()`.
+- `data/common_words.txt.gz` holds 64,000 common English words, from SCOWL up to
+  size 50. Its licence notice is `data/common_words.LICENSE`; keep the two
+  together. R10 reads the list through `rules.common_words()`.
 - `signals.py` counts the patterns of current Claude prose for `measure`:
   interrupters, contrast frames, emphasis families, compression and unexpanded
   acronyms. They are measurements, not rules. It imports spaCy types only.
