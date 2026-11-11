@@ -101,3 +101,25 @@ def test_wrapped_prose_does_not_break():
     )
     assert breaks_at(source) == []
     assert breaks_at("A shortcut in the\n⌘-tab switcher and an arrow\n→ here\n") == []
+
+
+def test_inline_code_wrapped_over_two_lines_is_one_placeholder():
+    src = "Run with `GIT_DIR` and the rest of `git\nrev-parse --local-env-vars` set.\n"
+    (block,) = parse(src)
+    assert block.text == "Run with CODE and the rest of CODE set."
+    assert block.position(block.text.index("set")) == (2, 29)
+    assert block.in_code(27, 31)
+
+
+def test_link_wrapped_over_two_lines_drops_its_target():
+    src = "A [fallback\ncommand](commands/run.md#the-fallback-command) inherits.\n"
+    (block,) = parse(src)
+    assert block.text == "A fallback command inherits."
+    assert block.position(block.text.index("command")) == (2, 1)
+
+
+def test_wrapped_code_span_does_not_start_an_item():
+    src = "**Status:** see `a\n**b:** c` now\n**Owner:** me\n"
+    (block,) = parse(src)
+    assert block.text == "Status: see CODE now Owner: me"
+    assert block.breaks == [block.text.index("Owner")]

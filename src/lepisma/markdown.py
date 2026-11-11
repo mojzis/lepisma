@@ -65,6 +65,8 @@ class Block:
     raw: list[str] = field(default_factory=list)
     # Offsets in ``text`` where a source line starts a new item, so a new sentence.
     breaks: list[int] = field(default_factory=list)
+    # Source (line, 0-based column) of each line in ``raw``.
+    starts: list[tuple[int, int]] = field(default_factory=list)
 
     def position(self, offset: int) -> tuple[int, int]:
         """Source (line, col) of the character at ``offset``."""
@@ -84,33 +86,64 @@ class Block:
             self.code_spans.append((start, len(self.text)))
 
     def add_line(self, content: str, line: int, col0: int) -> None:
-        """Append one source line; ``col0`` is the 0-based column of ``content``."""
-        if self.text:
-            last = self.origins[-1]
-            self.text += " "
-            self.origins.append(last)
-            if _starts_item(self.raw[-1], content):
-                self.breaks.append(len(self.text))
+        """Append one source line; ``col0`` is the 0-based column of ``content``.
+
+        ``text`` is built by :meth:`finish`, once every line is in.
+        """
         self.raw.append(content)
+        self.starts.append((line, col0))
+
+    def finish(self) -> None:
+        """Build ``text`` from the lines added so far.
+
+        Inline code and links are matched over the joined lines, since both can
+        wrap: a code span that opens on one line and closes on the next is one
+        placeholder.
+        """
+        self.text = ""
+        self.origins, self.code_spans, self.breaks = [], [], []
+        joined = ""
+        where: list[tuple[int, int]] = []  # source (line, col) per joined char
+        item_starts: list[int] = []
+        for idx, (content, (line, col0)) in enumerate(
+            zip(self.raw, self.starts, strict=True)
+        ):
+            if idx:
+                joined += " "
+                where.append(where[-1] if where else (line, col0 + 1))
+                if _starts_item(self.raw[idx - 1], content):
+                    item_starts.append(len(joined))
+            joined += content
+            where.extend((line, col0 + i + 1) for i in range(len(content)))
+
+        def mark(i: int) -> None:
+            """Start an item at the first output that comes from index ``i`` on."""
+            while item_starts and item_starts[0] <= i:
+                item_starts.pop(0)
+                self.breaks.append(len(self.text))
+
+        def plain(lo: int, hi: int) -> None:
+            for i in range(lo, hi):
+                mark(i)
+                self._add(joined[i], *where[i])
+
         pos = 0
-        for m in _INLINE.finditer(content):
-            for i in range(pos, m.start()):
-                self._add(content[i], line, col0 + i + 1)
-            col = col0 + m.start() + 1
+        for m in _INLINE.finditer(joined):
+            plain(pos, m.start())
+            # A span that wraps over a line start is not a new item there.
+            while item_starts and m.start() < item_starts[0] < m.end():
+                item_starts.pop(0)
             kind = m.lastgroup
             if kind in {"code", "auto", "url"}:
-                self._add(PLACEHOLDER, line, col, code=True)
+                mark(m.start())
+                self._add(PLACEHOLDER, *where[m.start()], code=True)
             elif kind == "link":
-                text_col = col + 1
-                ltext = m.group("ltext")
-                for i, ch in enumerate(ltext):
-                    self._add(ch, line, text_col + i)
+                plain(m.start("ltext"), m.end("ltext"))
             elif kind == "escape":
-                self._add(m.group()[1], line, col + 1)
+                plain(m.start() + 1, m.end())
             # image, html, emph: dropped
             pos = m.end()
-        for i in range(pos, len(content)):
-            self._add(content[i], line, col0 + i + 1)
+        plain(pos, len(joined))
 
     def is_identifier_list_item(self) -> bool:
         """True for list items like ``- `max_retries` `` or ``- user_id``."""
@@ -215,8 +248,10 @@ def parse(source: str) -> list[Block]:  # noqa: PLR0912, PLR0915 - one scanner l
 
     def close() -> None:
         nonlocal current
-        if current is not None and current.text.strip():
-            blocks.append(current)
+        if current is not None:
+            current.finish()
+            if current.text.strip():
+                blocks.append(current)
         current = None
 
     def start(kind: BlockKind) -> Block:
