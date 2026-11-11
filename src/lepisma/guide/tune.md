@@ -71,6 +71,10 @@ max_per_1000 = {{contrast_frame.max_per_1000}}        # strong at twice this
 rare_terms = {{undefined_term.rare_terms}}
 min_uses = {{undefined_term.min_uses}}                       # uses before a rare word counts
 # known_terms = ["worktree"]       # rare words that need no definition here
+# glossary files, layered in order; paths are relative to this lepisma.toml
+# glossary = ["../org-docs/glossary.toml", "docs/glossary.toml"]
+# globs, matched like `ignore`; the glossary is not applied to these files
+# spell_out_in = ["README.md"]
 
 [rules.emphasis]                   # R11, judged per document and per family
 # sincerity = ["genuinely", "exactly", "deliberately", "quietly", "silently"]
@@ -82,6 +86,38 @@ max_per_1000 = {{emphasis.max_per_1000}}        # strong at twice this
 Rules can be named by ID (`R2`) or name (`noun-stack`), here and in comments:
 `<!-- lepisma: disable R2 -->`, `enable R2`, `disable-next R1 R3`, or
 `disable` for all rules.
+
+### Glossary
+
+A glossary file defines terms for R10. It is TOML with one table per term. An
+entry needs `expansion`, `definition` or both, and each is a string:
+
+```toml
+[ADR]
+expansion = "Architecture Decision Record"
+definition = "Short doc recording one architectural decision and why."
+
+[worktree]
+definition = "A second checkout of the same git repository."
+```
+
+- An entry named like an acronym works as a `known_acronyms` entry. Any other
+  single word works as a `known_terms` entry, which matters only with
+  `rare_terms = true`. An entry of several words has no effect yet.
+- Files are layered in order: the shared file first, then the repo's own.
+  `--glossary PATH` on `check` and `hook` adds a file after the ones in the
+  config. Repeat the flag for more files. Its paths are relative to the
+  current directory.
+- When two files give a term different expansions, the later one wins and
+  stderr gets one line per conflict.
+- A missing or invalid file is left out with one line on stderr. The hook
+  still exits 0.
+- `spell_out_in` names files read without the glossary at hand, such as
+  `README.md`. There the first use must still be spelled out.
+
+```
+uv run lepisma check --glossary ../org-docs/glossary.toml docs/
+```
 
 ### Environment
 

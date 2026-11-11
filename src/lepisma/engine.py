@@ -4,6 +4,7 @@ in-process ``check`` command load this module."""
 from __future__ import annotations
 
 from collections.abc import Iterable, Iterator
+from dataclasses import replace
 from functools import cache
 from typing import TYPE_CHECKING
 
@@ -70,6 +71,9 @@ def lint_text(
 ) -> FileResult:
     """Lint one Markdown document."""
     nlp = nlp or load_nlp()
+    if cfg.undefined_term.glossary and cfg.spells_out(path):
+        # This file is read without the glossary at hand: R10 runs without it.
+        cfg = replace(cfg, undefined_term=replace(cfg.undefined_term, glossary={}))
     blocks = [b for b in markdown.parse(text) if not b.is_identifier_list_item()]
     enabled = [rid for rid, (_, attr) in RULES.items() if getattr(cfg, attr).enabled]
     parsed = list(zip(blocks, parse_blocks(nlp, blocks), strict=True))
