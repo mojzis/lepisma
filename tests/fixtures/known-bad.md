@@ -31,3 +31,6 @@ The hook is an inventory, not a verdict. It lists findings rather than blocking 
 
 <!-- R10 -->
 The daemon speaks LSP to the type checker.
+
+<!-- R11 -->
+The seam between the two modules is narrow. Each seam has one owner. The verdict lands in the report.

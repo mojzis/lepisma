@@ -14,9 +14,7 @@ from lepisma.config import Config
 from lepisma.rules import contrast_offsets, interrupter_counts, is_word
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
-
-    from spacy.tokens import Doc, Span, Token
+    from spacy.tokens import Doc, Span
 
     from lepisma.markdown import Block
 
@@ -51,11 +49,6 @@ _COMPOUND = re.compile(r"\b[A-Za-z]+(?:-[A-Za-z]+){2,}\b")
 _BOLD = re.compile(r"(\*\*|__)(?=\S)(.+?)(?<=\S)\1")
 
 
-SINCERITY = frozenset({"genuinely", "exactly", "deliberately", "quietly", "silently"})
-FIGURATIVE = frozenset(
-    {"seam", "verdict", "shape", "rung", "floor", "land", "surface", "wire", "drift"}
-)
-_FIGURATIVE_PHRASE = re.compile(r"\bload-bearing\b", re.IGNORECASE)
 _IMPORTANCE = re.compile(
     r"\bthis matters\b|\bmatters (?:because|most|here)\b"
     r"|\bworth (?:noting|knowing|remembering|mentioning|calling out|stressing)\b"
@@ -107,19 +100,19 @@ def contrast_frames(text: str, prev: str = "") -> int:
     return len(contrast_offsets(text, prev))
 
 
-def _outside_code(block: Block, sent: Span) -> Iterable[Token]:
-    return (t for t in sent if not block.in_code(t.idx, t.idx + len(t)))
-
-
 def emphasis(block: Block, sent: Span) -> dict[str, int]:
-    """Sincerity markers, importance flags and figurative house terms."""
-    toks = list(_outside_code(block, sent))
-    text = sent.text
+    """Sincerity markers, importance flags and R11's figurative terms."""
+    rule = _DEFAULTS.emphasis
+    lo, hi = sent.start_char, sent.end_char
+
+    def count(words: list[str]) -> int:
+        hits = rules.emphasis_hits(block, sent.doc, words)
+        return sum(1 for offset, _ in hits if lo <= offset < hi)
+
     return {
-        "sincerity": sum(1 for t in toks if t.lower_ in SINCERITY),
-        "importance": len(_IMPORTANCE.findall(text)),
-        "figurative": sum(1 for t in toks if t.lemma_.lower() in FIGURATIVE)
-        + len(_FIGURATIVE_PHRASE.findall(text)),
+        "sincerity": count(rule.sincerity),
+        "importance": len(_IMPORTANCE.findall(sent.text)),
+        "figurative": count(rule.figurative),
     }
 
 
@@ -158,8 +151,9 @@ def inanimate_actors(block: Block, sent: Span) -> int:
     """Things that want, know or decide: "the parser wants"."""
     return sum(
         1
-        for t in _outside_code(block, sent)
-        if t.dep_ == "nsubj"
+        for t in sent
+        if not block.in_code(t.idx, t.idx + len(t))
+        and t.dep_ == "nsubj"
         and t.pos_ == "NOUN"
         and t.lemma_.lower() not in ANIMATE
         and t.head.pos_ == "VERB"

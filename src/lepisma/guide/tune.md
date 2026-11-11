@@ -70,7 +70,13 @@ max_per_1000 = {{contrast_frame.max_per_1000}}        # strong at twice this
 # also flag rare words that a document uses often and never defines
 rare_terms = {{undefined_term.rare_terms}}
 min_uses = {{undefined_term.min_uses}}                       # uses before a rare word counts
-# known_terms = ["worktree"]           # rare words that need no definition here
+# known_terms = ["worktree"]       # rare words that need no definition here
+
+[rules.emphasis]                   # R11, judged per document and per family
+# sincerity = ["genuinely", "exactly", "deliberately", "quietly", "silently"]
+# figurative = ["seam", "verdict", "load-bearing", "shape", "rung", "floor", ...]
+min_count = {{emphasis.min_count}}             # fewer hits than this never warn
+max_per_1000 = {{emphasis.max_per_1000}}        # strong at twice this
 ```
 
 Rules can be named by ID (`R2`) or name (`noun-stack`), here and in comments:

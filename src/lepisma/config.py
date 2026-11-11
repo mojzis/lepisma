@@ -109,6 +109,16 @@ DEFAULT_KNOWN_ACRONYMS = [
 ]  # fmt: skip
 
 
+# Words that claim sincerity or precision in place of showing it.
+DEFAULT_SINCERITY = ["genuinely", "exactly", "deliberately", "quietly", "silently"]
+
+# Figures of speech that stand in for a plain name. Inflections match too.
+DEFAULT_FIGURATIVE = [
+    "seam", "verdict", "load-bearing", "shape", "rung", "floor", "land", "surface",
+    "wire", "drift",
+]  # fmt: skip
+
+
 class ConfigError(ValueError):
     """Raised for an invalid ``lepisma.toml``."""
 
@@ -233,6 +243,19 @@ class UndefinedTerm:
 
 
 @dataclass(slots=True)
+class Emphasis:
+    """R11 settings."""
+
+    enabled: bool = True
+    sincerity: list[str] = field(default_factory=lambda: list(DEFAULT_SINCERITY))
+    figurative: list[str] = field(default_factory=lambda: list(DEFAULT_FIGURATIVE))
+    # Per family: fewer hits than this never warn.
+    min_count: int = 3
+    # Per family: hits per 1,000 words a document may hold; strong at twice this.
+    max_per_1000: float = 3.0
+
+
+@dataclass(slots=True)
 class Server:
     """Local spaCy server settings."""
 
@@ -256,6 +279,7 @@ class Config:
     interruption_load: InterruptionLoad = field(default_factory=InterruptionLoad)
     contrast_frame: ContrastFrame = field(default_factory=ContrastFrame)
     undefined_term: UndefinedTerm = field(default_factory=UndefinedTerm)
+    emphasis: Emphasis = field(default_factory=Emphasis)
     server: Server = field(default_factory=Server)
 
     def is_ignored(self, path: str) -> bool:
@@ -278,6 +302,7 @@ RULES: dict[str, tuple[str, str]] = {
     "R8": ("interruption-load", "interruption_load"),
     "R9": ("contrast-frame", "contrast_frame"),
     "R10": ("undefined-term", "undefined_term"),
+    "R11": ("emphasis", "emphasis"),
 }
 
 

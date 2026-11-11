@@ -124,13 +124,14 @@ The server log is in `~/.cache/lepisma/server.log`.
 | R8 | `interruption-load` | one sentence holds 2 or more dashes, parentheses, semicolons or mid-sentence colons | 3 or more |
 | R9 | `contrast-frame` | a document holds 3 or more frames like "X, not Y", and more than 4 per 1,000 words | more than 8 per 1,000 words |
 | R10 | `undefined-term` | an acronym is not spelled out near its first use | never |
+| R11 | `emphasis` | a document holds 3 or more sincerity words, or 3 or more figurative terms, and more than 3 per 1,000 words | more than 6 per 1,000 words |
 
 Details:
 
 - **All rules** skip code blocks, inline code, tables, front matter, HTML and link
   targets. List items that hold only an identifier, like `- max_retries`, are skipped
   too.
-- **Headings** get R3, R9 and R10 only. R7 looks at paragraphs and quotes only.
+- **Headings** get R3, R9, R10 and R11 only. R7 looks at paragraphs and quotes only.
 - **R2** ignores runs made only of proper nouns, like "GitHub Actions CI". It also
   ignores runs with more than one proper noun (`max_proper_nouns`), like "Claude Code
   conversation logs". Inline code breaks a run, and a hyphenated word like
@@ -213,6 +214,18 @@ Details:
   [SCOWL](http://wordlist.aspell.net/) up to size 50. SCOWL has a permissive
   licence in the MIT style, and its notice ships as `data/common_words.LICENSE`.
   Only the server and `check` read the list. The hook client does not.
+
+<!-- lepisma: disable-next R11 -->
+- **R11** counts two word families, each on its own, and warns once per family at
+  the first hit. Sincerity words claim what the text should show: genuinely,
+  exactly, deliberately, quietly, silently. Figurative terms stand in for a plain
+  name: seam, verdict, load-bearing, shape, rung, floor, land, surface, wire,
+  drift. Inflections match, so "seams" and "wired" count. Many of these words
+  also have a literal use, like "exactly one line". So R11 judges the density per
+  document, and one or two uses never warn. A figurative term that the document
+  introduces with "A seam is ..." or "called a seam" is a name and is left out.
+  Both lists are config keys. R3 is unchanged: its list holds filler that is
+  wrong on every use.
 
   About half of the R8 hits in the toolbox docs are in sentences of 25 words or
   fewer, which R1 never sees.
@@ -335,14 +348,14 @@ further.
 
 Current numbers (warnings per 1,000 words):
 
-| Set | Words | R1 | R2 | R3 | R4 | R5 | R6 | R7 | R8 | R9 | R10 | Total |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| bad | 2,698 | 7.4 | 3.3 | 41.9 | 8.5 | 0 | 0 | 3.3 | 0.4 | 0 | 0.4 | 65.2 |
-| good | 1,235 | 0 | 0 | 0.8 | 0 | 0 | 0 | 0 | 0 | 0 | 0.8 | 1.6 |
-| toolbox | 51,463 | 9.0 | 0.1 | 0.0 | 0.2 | 0.8 | 0.2 | 0.0 | 3.9 | 0.6 | 1.2 | 16.0 |
+| Set | Words | R1 | R2 | R3 | R4 | R5 | R6 | R7 | R8 | R9 | R10 | R11 | Total |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| bad | 2,698 | 7.4 | 3.3 | 41.9 | 8.5 | 0 | 0 | 3.3 | 0.4 | 0 | 0.4 | 0 | 65.2 |
+| good | 1,235 | 0 | 0 | 0.8 | 0 | 0 | 0 | 0 | 0 | 0 | 0.8 | 0 | 1.6 |
+| toolbox | 51,463 | 9.0 | 0.1 | 0.0 | 0.2 | 0.8 | 0.2 | 0.0 | 3.9 | 0.6 | 1.2 | 0.7 | 16.7 |
 
 R9 and later warn once per document, so their numbers stay small. R9 flags 30 of
-the 115 toolbox docs.
+the 115 toolbox docs. R11 flags 26 for figurative terms and 8 for sincerity words.
 
 The same sets, measured for the newer patterns with `lepisma measure` (per 1,000
 words unless noted):

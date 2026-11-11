@@ -9,8 +9,8 @@ using the CLI.
 - `markdown.py` turns Markdown into prose blocks and maps each character back to its
   line and column. It drops code, tables, front matter and HTML. Inline code becomes
   the `CODE` placeholder.
-- `rules.py` holds R1 to R10. R1 to R8 are `(block, doc, cfg) -> Iterator[Finding]`.
-  R9 and R10 judge a whole document: `(parsed, cfg) -> Iterator[(block index, Finding)]`,
+- `rules.py` holds R1 to R11. R1 to R8 are `(block, doc, cfg) -> Iterator[Finding]`.
+  R9 to R11 judge a whole document: `(parsed, cfg) -> Iterator[(block index, Finding)]`,
   listed in `DOC_RULE_FUNCS`.
 - `engine.py` runs spaCy and the rules. Only it, `server.py` and `measure.py` import
   spaCy.
