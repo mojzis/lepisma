@@ -51,6 +51,23 @@ SUMMARY = (
     "passives_per_sentence",
     "duplicate_5gram_chr_fraction",
     "habit_per_1k",
+    "em_dashes_per_1k",
+    "interrupters_per_1k",
+    "share_interrupted",
+    "share_interrupted_short",
+    "contrast_frames_per_1k",
+    "sincerity_per_1k",
+    "importance_per_1k",
+    "figurative_per_1k",
+    "arrows_per_1k",
+    "hyphen_compounds_per_1k",
+    "no_verb_per_1k",
+    "no_subject_per_1k",
+    "punchline_per_1k",
+    "trailing_participle_per_1k",
+    "inanimate_actor_per_1k",
+    "block_bold_spans_per_1k",
+    "acronyms_unexpanded",
 )
 TOP_UNITS = 15
 TOP_SENTENCES = 30

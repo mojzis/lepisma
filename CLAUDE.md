@@ -19,6 +19,9 @@ using the CLI.
   the library API (`Measurer`). `measure_report.py` builds the scores and
   `report.md`. Both need the `measure` extra (Polars, Pyphen), so keep
   them off the lint and hook path.
+- `signals.py` counts the patterns of current Claude prose for `measure`:
+  interrupters, contrast frames, emphasis families, compression and unexpanded
+  acronyms. They are measurements, not rules. It imports spaCy types only.
 - `textstats.py` holds the readability, dependency distance, POS and repetition
   formulas, ported from TextDescriptives (which pins numpy<2). Keep them matching
   it so old `measure` runs stay comparable.
