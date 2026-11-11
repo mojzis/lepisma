@@ -14,6 +14,8 @@ if TYPE_CHECKING:
     from lepisma.config import Config
     from lepisma.markdown import Block
 
+    Parsed = list[tuple[Block, Doc]]
+
 NOUNS = {"NOUN", "PROPN"}
 # Verb lexicons by id(vocab), registered by engine.parse_blocks. Kept off the
 # Doc so it never gets copied or serialized with one.
@@ -738,6 +740,75 @@ def interruption_load(block: Block, doc: Doc, cfg: Config) -> Iterator[Finding]:
         )
 
 
+_CONTRAST = re.compile(
+    r"\bnot (?!only\b)(?:[\w'-]+ ){1,4}?but\b"  # not X but Y
+    r"|,\s+not\b"  # X, not Y
+    r"|\brather than\b",
+    re.IGNORECASE,
+)
+_NEGATED = re.compile(
+    r"\b(?:is|are|was|were|does|do)(?:n't|n\u2019t| not)\b", re.IGNORECASE
+)
+_CORRECTS = re.compile(
+    r"\W*(?:it|that|this|they)(?:'s|\u2019s|'re|\u2019re| is| are)\b", re.IGNORECASE
+)
+_MAX_LINES = 5  # lines a document-level message lists before "and N more"
+
+
+def contrast_offsets(text: str, prev: str = "") -> list[int]:
+    """Where ``text`` frames a point as a contrast: "not X but Y", "X, not Y",
+    "rather than", and "It's Y" when ``prev`` is "isn't X"."""
+    found = [m.start() for m in _CONTRAST.finditer(text)]
+    if prev and _NEGATED.search(prev) and (m := _CORRECTS.match(text)):
+        found.append(m.end() - len(m.group().lstrip()))
+    return sorted(found)
+
+
+def doc_words(parsed: Parsed) -> int:
+    """Words in a document, counted as ``lint_text`` counts them."""
+    return sum(1 for _, doc in parsed for t in doc if not (t.is_punct or t.is_space))
+
+
+def _line_list(lines: list[int]) -> str:
+    shown = ", ".join(map(str, lines[:_MAX_LINES]))
+    more = len(lines) - _MAX_LINES
+    return f"lines {shown} and {more} more" if more > 0 else f"lines {shown}"
+
+
+def contrast_frame(parsed: Parsed, cfg: Config) -> Iterator[tuple[int, Finding]]:
+    """R9: a document that keeps defining things by what they are not."""
+    rule = cfg.contrast_frame
+    hits: list[tuple[int, int]] = []  # (block index, offset)
+    for idx, (block, doc) in enumerate(parsed):
+        if "R9" in block.disabled:
+            continue
+        prev = ""
+        for sent in doc.sents:
+            text = sent.text
+            hits.extend(
+                (idx, sent.start_char + o) for o in contrast_offsets(text, prev)
+            )
+            prev = text
+    allowed = max(rule.min_count - 1, doc_words(parsed) * rule.max_per_1000 / 1000)
+    if len(hits) <= allowed:
+        return
+    lines = sorted({parsed[idx][0].position(offset)[0] for idx, offset in hits})
+    idx, offset = hits[0]
+    yield (
+        idx,
+        Finding(
+            rule="R9",
+            offset=offset,
+            message=(
+                f'{len(hits)} contrast frames such as "X, not Y" in this document '
+                f"({_line_list(lines)}); say what the thing is, and keep a "
+                "contrast only where the reader would assume the opposite."
+            ),
+            severity="strong" if len(hits) > 2 * allowed else "warning",
+        ),
+    )
+
+
 RuleFn = Callable[["Block", "Doc", "Config"], Iterator[Finding]]
 
 RULE_FUNCS: dict[str, RuleFn] = {
@@ -749,4 +820,11 @@ RULE_FUNCS: dict[str, RuleFn] = {
     "R6": vague_this,
     "R7": tidy_summary,
     "R8": interruption_load,
+}
+
+# Rules that judge a whole document. Each yields (block index, finding).
+DocRuleFn = Callable[["Parsed", "Config"], Iterator[tuple[int, Finding]]]
+
+DOC_RULE_FUNCS: dict[str, DocRuleFn] = {
+    "R9": contrast_frame,
 }

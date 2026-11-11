@@ -26,7 +26,7 @@ def test_lint_returns_results_and_uses_config():
 
 def test_bad_config_is_422():
     client = TestClient(create_app())
-    resp = client.post("/lint", json={"files": [], "config": {"rules": {"R9": {}}}})
+    resp = client.post("/lint", json={"files": [], "config": {"rules": {"R99": {}}}})
     assert resp.status_code == 422
 
 

@@ -193,6 +193,17 @@ class InterruptionLoad:
 
 
 @dataclass(slots=True)
+class ContrastFrame:
+    """R9 settings."""
+
+    enabled: bool = True
+    # A document with fewer frames than this is never flagged.
+    min_count: int = 3
+    # Frames per 1,000 words a document may hold; strong at twice this.
+    max_per_1000: float = 4.0
+
+
+@dataclass(slots=True)
 class Server:
     """Local spaCy server settings."""
 
@@ -214,6 +225,7 @@ class Config:
     vague_this: VagueThis = field(default_factory=VagueThis)
     tidy_summary: TidySummary = field(default_factory=TidySummary)
     interruption_load: InterruptionLoad = field(default_factory=InterruptionLoad)
+    contrast_frame: ContrastFrame = field(default_factory=ContrastFrame)
     server: Server = field(default_factory=Server)
 
     def is_ignored(self, path: str) -> bool:
@@ -234,6 +246,7 @@ RULES: dict[str, tuple[str, str]] = {
     "R6": ("vague-this", "vague_this"),
     "R7": ("tidy-summary", "tidy_summary"),
     "R8": ("interruption-load", "interruption_load"),
+    "R9": ("contrast-frame", "contrast_frame"),
 }
 
 
@@ -249,12 +262,15 @@ def rule_id(name_or_id: str) -> str | None:
 
 
 def _apply(target: object, values: dict[str, Any], section: str) -> None:
-    for key, value in values.items():
+    for key, given in values.items():
+        value = given
         attr = key.replace("-", "_")
         if not hasattr(target, attr):
             msg = f"unknown setting [{section}] {key}"
             raise ConfigError(msg)
         current = getattr(target, attr)
+        if isinstance(current, float) and type(value) is int:
+            value = float(value)
         if isinstance(current, bool) != isinstance(value, bool) or not isinstance(
             value, type(current)
         ):

@@ -18,7 +18,7 @@ TOPICS: dict[str, str] = {
     "tune": "reference: config keys, defaults, exit codes, changing a threshold",
 }
 
-_PLACEHOLDER = re.compile(r"\{\{\s*([a-z_]+)\.([a-z_]+)\s*\}\}")
+_PLACEHOLDER = re.compile(r"\{\{\s*([a-z_]+)\.([a-z_0-9]+)\s*\}\}")
 
 
 def _default(match: re.Match[str]) -> str:

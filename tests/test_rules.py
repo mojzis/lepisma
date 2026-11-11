@@ -431,3 +431,63 @@ def test_interruption_load_skips_marks_inside_quotes(lint):
     assert not r8(
         lint('That means a recipient ("gives guidance to Claude Code") or a gift (x).')
     )
+
+
+def r9(warnings):
+    return [w for w in warnings if w.rule == "R9"]
+
+
+CONTRASTS = (
+    "# A report, not a gate\n\n"
+    "The hook is an inventory, not a verdict.\n\n"
+    "It lists findings rather than blocking the commit.\n"
+)
+
+
+def test_contrast_frame_reports_once_per_document_with_lines(lint):
+    (w,) = r9(lint(CONTRASTS))
+    assert (w.line, w.col) == (1, 11)  # the first frame, in the heading
+    assert w.message.startswith('3 contrast frames such as "X, not Y"')
+    assert "(lines 1, 3, 5)" in w.message
+
+
+def test_contrast_frame_allows_a_few(lint):
+    assert not r9(lint("The hook is an inventory, not a verdict. It never blocks."))
+
+
+def test_contrast_frame_counts_a_negation_then_a_correction(lint):
+    text = (
+        "The exit code isn't a judgment. It's a count.\n\n"
+        "The log isn't a report. It's a trace.\n\n"
+        "The file is data, not code.\n"
+    )
+    (w,) = r9(lint(text))
+    assert w.message.startswith("3 contrast frames")
+
+
+def test_contrast_frame_scales_with_length(lint):
+    # Three frames in a long document are below 4 per 1,000 words.
+    filler = "The parser reads one file and then it writes one row. " * 80
+    assert not r9(lint(CONTRASTS + "\n" + filler))
+    cfg = from_dict({"rules": {"contrast-frame": {"max_per_1000": 1}}})
+    assert r9(lint(CONTRASTS + "\n" + filler, cfg))
+
+
+def test_contrast_frame_is_strong_at_twice_the_allowance(lint):
+    text = "\n\n".join(f"Part {n} is data, not code." for n in range(5))
+    (w,) = r9(lint(text))
+    assert w.severity == "strong"
+
+
+def test_contrast_frame_skips_plain_negation_and_additions(lint):
+    # "not only X but also Y" adds; "does not X, but Y" concedes.
+    adds = "It is not only fast but also small."
+    concedes = "The run does not finish on a cold cache, but the next one does."
+    assert not r9(lint("\n\n".join([adds] * 4)))
+    assert not r9(lint("\n\n".join([concedes] * 4)))
+    assert r9(lint("\n\n".join(["It is not a gate but a report."] * 4)))
+
+
+def test_contrast_frame_leaves_out_disabled_blocks(lint):
+    text = CONTRASTS.replace("It lists", "<!-- lepisma: disable-next R9 -->\nIt lists")
+    assert not r9(lint(text))

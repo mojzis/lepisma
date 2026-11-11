@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING
 
 from lepisma import markdown
 from lepisma.config import RULES, Config
-from lepisma.models import FileResult, Warning
-from lepisma.rules import RULE_FUNCS, register_verbs
+from lepisma.models import FileResult, Finding, Warning
+from lepisma.rules import DOC_RULE_FUNCS, RULE_FUNCS, doc_words, register_verbs
 
 if TYPE_CHECKING:
     from spacy.language import Language
@@ -72,25 +72,36 @@ def lint_text(
     nlp = nlp or load_nlp()
     blocks = [b for b in markdown.parse(text) if not b.is_identifier_list_item()]
     enabled = [rid for rid, (_, attr) in RULES.items() if getattr(cfg, attr).enabled]
+    parsed = list(zip(blocks, parse_blocks(nlp, blocks), strict=True))
+    found: list[tuple[markdown.Block, Finding]] = []
+    for block, doc in parsed:
+        found.extend(
+            (block, finding)
+            for rid in enabled
+            if rid in RULE_FUNCS
+            for finding in RULE_FUNCS[rid](block, doc, cfg)
+        )
+    for rid in enabled:
+        if rid in DOC_RULE_FUNCS:
+            found.extend(
+                (parsed[idx][0], finding)
+                for idx, finding in DOC_RULE_FUNCS[rid](parsed, cfg)
+            )
     warnings: list[Warning] = []
-    words = 0
-    for block, doc in zip(blocks, parse_blocks(nlp, blocks), strict=True):
-        words += sum(1 for t in doc if not (t.is_punct or t.is_space))
-        for rid in enabled:
-            if rid in block.disabled:
-                continue
-            for finding in RULE_FUNCS[rid](block, doc, cfg):
-                line, col = block.position(finding.offset)
-                warnings.append(
-                    Warning(
-                        path=path,
-                        line=line,
-                        col=col,
-                        rule=finding.rule,
-                        name=RULES[finding.rule][0],
-                        severity=finding.severity,
-                        message=finding.message,
-                    )
-                )
+    for block, finding in found:
+        if finding.rule in block.disabled:
+            continue
+        line, col = block.position(finding.offset)
+        warnings.append(
+            Warning(
+                path=path,
+                line=line,
+                col=col,
+                rule=finding.rule,
+                name=RULES[finding.rule][0],
+                severity=finding.severity,
+                message=finding.message,
+            )
+        )
     warnings.sort(key=lambda w: (w.line, w.col, w.rule))
-    return FileResult(path=path, words=words, warnings=tuple(warnings))
+    return FileResult(path=path, words=doc_words(parsed), warnings=tuple(warnings))
