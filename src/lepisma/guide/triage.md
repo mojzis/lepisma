@@ -11,7 +11,7 @@ uv run lepisma check --format json docs/setup.md
 
 ### What each rule means
 
-<!-- lepisma: disable R2 R3 R4 R5 R6 R7 R8 R9 R10 -->
+<!-- lepisma: disable R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 -->
 - **R1 long-sentence**: over {{long_sentence.max_words}} words, strong over {{long_sentence.strong_words}}.
   Split it into two or three sentences.
 - **R2 noun-stack**: {{noun_stack.min_nouns}} or more nouns modify each other
@@ -41,7 +41,13 @@ uv run lepisma check --format json docs/setup.md
   {{undefined_term.min_uses}} or more times and never defined. Define it at first use, or use a plainer word.
   If every reader of this repo knows the term, a human can add it to `extra_known`
   or `known_terms`.
-<!-- lepisma: enable R2 R3 R4 R5 R6 R7 R8 R9 R10 -->
+- **R11 emphasis**: one warning per document and family, at the first hit. Sincerity
+  words ("exactly", "genuinely") claim what the text should show: cut each one, or
+  state the fact that backs it. Figurative terms ("seam", "verdict") stand in for
+  a plain name: name the thing, or define the term once with "A seam is ...".
+  A literal use is fine, and the count allows a few. Do not swap in another figure
+  of speech.
+<!-- lepisma: enable R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 -->
 
 ### Remedy ladder (take the first rule that applies)
 

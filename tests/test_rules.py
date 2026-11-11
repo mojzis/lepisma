@@ -562,3 +562,75 @@ def test_undefined_term_needs_min_uses_and_ignores_common_words(lint):
     assert not r10(lint("The shim starts first. The shim then exits.", RARE))
     common = "The cache starts. The cache fills. The cache is flushed and cached."
     assert not r10(lint(common, RARE))
+
+
+def r11(warnings):
+    return [w for w in warnings if w.rule == "R11"]
+
+
+FIGURES = (
+    "The seam between the two modules is narrow.\n\n"
+    "Each seam has one owner.\n\n"
+    "The verdict lands in the report.\n"
+)
+
+
+def test_emphasis_reports_figurative_terms_once_per_document(lint):
+    (w,) = r11(lint(FIGURES))
+    assert (w.line, w.col, w.severity) == (1, 5, "warning")
+    assert w.message == (
+        '4 figurative terms in this document ("seam" 2, "verdict" 1, "land" 1; '
+        "lines 1, 3, 5); name the thing each one stands for, or define the term once."
+    )
+
+
+def test_emphasis_reports_sincerity_words_as_their_own_family(lint):
+    text = (
+        "It exactly matches the old output.\n\n"
+        "The hook silently skips the file.\n\n"
+        "That is genuinely useful.\n"
+    )
+    (w,) = r11(lint(text))
+    assert w.message.startswith("3 sincerity words in this document")
+    assert w.message.endswith("cut each one, or state the fact that backs it.")
+
+
+def test_emphasis_counts_each_family_on_its_own(lint):
+    # Two of one family and two of the other: neither reaches three.
+    text = (
+        "The seam is narrow. The verdict is final. It exactly fits. It is quietly on."
+    )
+    assert not r11(lint(text))
+
+
+def test_emphasis_allows_a_few_and_scales_with_length(lint):
+    assert not r11(lint("The seam between the modules is narrow. Each seam is small."))
+    filler = "The parser reads one file and then it writes one row. " * 140
+    assert not r11(lint(FIGURES + "\n" + filler))
+
+
+def test_emphasis_skips_a_term_the_document_introduces(lint):
+    named = "A seam is the one place where a module spawns a process.\n\n"
+    assert not r11(lint(named + FIGURES.replace("The verdict lands", "The result is")))
+
+
+def test_emphasis_skips_code_and_disabled_blocks(lint):
+    three = "The seam is narrow.\n\nEach seam has one owner.\n\nA seam is small.\n"
+    assert not r11(lint("Seams matter.\n\n" + three))  # "A seam is" names it
+    plain = three.replace("A seam is small.", "No seam is wide.")
+    assert r11(lint(plain))
+    assert not r11(lint(plain.replace("Each seam", "Each `seam`")))
+    off = plain.replace("Each seam", "<!-- lepisma: disable-next R11 -->\nEach seam")
+    assert not r11(lint(off))
+
+
+def test_emphasis_lists_are_configurable(lint):
+    cfg = from_dict({"rules": {"emphasis": {"figurative": ["pipeline"]}}})
+    assert not r11(lint(FIGURES, cfg))
+    text = "The pipeline runs. The pipeline stops. The pipeline restarts."
+    assert r11(lint(text, cfg))
+
+
+def test_emphasis_is_strong_at_twice_the_allowance(lint):
+    (w,) = r11(lint(FIGURES + "\nA load-bearing seam.\n"))
+    assert w.severity == "strong"

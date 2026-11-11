@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import gzip
 import re
+from collections import Counter
 from collections.abc import Callable, Iterator
 from functools import cache
 from importlib.resources import files
@@ -772,6 +773,11 @@ def doc_words(parsed: Parsed) -> int:
     return sum(1 for _, doc in parsed for t in doc if not (t.is_punct or t.is_space))
 
 
+def _allowed(parsed: Parsed, min_count: int, max_per_1000: float) -> float:
+    """How many hits a document may hold before a density rule warns."""
+    return max(min_count - 1, doc_words(parsed) * max_per_1000 / 1000)
+
+
 def _line_list(lines: list[int]) -> str:
     shown = ", ".join(map(str, lines[:_MAX_LINES]))
     more = len(lines) - _MAX_LINES
@@ -792,7 +798,7 @@ def contrast_frame(parsed: Parsed, cfg: Config) -> Iterator[tuple[int, Finding]]
                 (idx, sent.start_char + o) for o in contrast_offsets(text, prev)
             )
             prev = text
-    allowed = max(rule.min_count - 1, doc_words(parsed) * rule.max_per_1000 / 1000)
+    allowed = _allowed(parsed, rule.min_count, rule.max_per_1000)
     if len(hits) <= allowed:
         return
     lines = sorted({parsed[idx][0].position(offset)[0] for idx, offset in hits})
@@ -955,6 +961,87 @@ def undefined_term(parsed: Parsed, cfg: Config) -> Iterator[tuple[int, Finding]]
         )
 
 
+def emphasis_hits(block: Block, doc: Doc, words: list[str]) -> list[tuple[int, str]]:
+    """(offset, word) for each use of a word from ``words`` outside code.
+
+    Single words match by form or lemma, so "seams" and "shaped" count.
+    Entries with a hyphen or a space match as written.
+    """
+    singles = {w.lower() for w in words if not _MULTI.search(w)}
+    hits = [
+        (tok.idx, word)
+        for tok in doc
+        if not block.in_code(tok.idx, tok.idx + len(tok))
+        for word in (tok.lower_, tok.lemma_.lower())
+        if word in singles
+    ]
+    lowered = block.text.lower()
+    for phrase in (w.lower() for w in words if _MULTI.search(w)):
+        pattern = r"\b" + re.escape(phrase) + r"\b"
+        hits.extend((m.start(), phrase) for m in re.finditer(pattern, lowered))
+    return sorted(set(hits))
+
+
+def _is_named(term: str, text: str) -> bool:
+    """True when ``text`` introduces ``term`` as a name: "a seam is ...", "seam
+    means ...", "called a seam". Stricter than R10's test, because "the floor is
+    low" uses a common word and defines nothing."""
+    x = rf"{re.escape(term)}(?:e?s)?\b"
+    pattern = (
+        rf"\ban? {x} is\b|\b{x} (?:means|mean|refers to|stands for)\b"
+        rf"|\b(?:called|named|termed|known as)(?: an?| the)? {x}"
+    )
+    return re.search(pattern, text, re.IGNORECASE) is not None
+
+
+_MULTI = re.compile(r"[\s-]")
+_FAMILIES = {
+    "sincerity": ("sincerity words", "cut each one, or state the fact that backs it"),
+    "figurative": (
+        "figurative terms",
+        "name the thing each one stands for, or define the term once",
+    ),
+}
+_TOP_WORDS = 3  # words a message names, most frequent first
+
+
+def emphasis(parsed: Parsed, cfg: Config) -> Iterator[tuple[int, Finding]]:
+    """R11: a document that leans on sincerity words or on figures of speech."""
+    rule = cfg.emphasis
+    allowed = _allowed(parsed, rule.min_count, rule.max_per_1000)
+    whole = "\n".join(block.text for block, _ in parsed)
+    for family, (label, advice) in _FAMILIES.items():
+        words = getattr(rule, family)
+        hits = [
+            (idx, offset, word)
+            for idx, (block, doc) in enumerate(parsed)
+            if "R11" not in block.disabled
+            for offset, word in emphasis_hits(block, doc, words)
+        ]
+        if family == "figurative":
+            # A term the document defines is a name, not a figure of speech.
+            defined = {w for _, _, w in hits if _is_named(w, whole)}
+            hits = [h for h in hits if h[2] not in defined]
+        if len(hits) <= allowed:
+            continue
+        counts = Counter(word for _, _, word in hits).most_common(_TOP_WORDS)
+        named = ", ".join(f'"{word}" {n}' for word, n in counts)
+        lines = sorted({parsed[idx][0].position(off)[0] for idx, off, _ in hits})
+        idx, offset, _ = hits[0]
+        yield (
+            idx,
+            Finding(
+                rule="R11",
+                offset=offset,
+                message=(
+                    f"{len(hits)} {label} in this document ({named}; "
+                    f"{_line_list(lines)}); {advice}."
+                ),
+                severity="strong" if len(hits) > 2 * allowed else "warning",
+            ),
+        )
+
+
 RuleFn = Callable[["Block", "Doc", "Config"], Iterator[Finding]]
 
 RULE_FUNCS: dict[str, RuleFn] = {
@@ -974,4 +1061,5 @@ DocRuleFn = Callable[["Parsed", "Config"], Iterator[tuple[int, Finding]]]
 DOC_RULE_FUNCS: dict[str, DocRuleFn] = {
     "R9": contrast_frame,
     "R10": undefined_term,
+    "R11": emphasis,
 }

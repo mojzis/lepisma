@@ -61,3 +61,9 @@ ignore = ["corpus/**", "CHANGELOG.md"]
 # rare_terms = false       # also flag rare words used often and never defined
 # min_uses = 3             # uses in one document before a rare word counts
 # known_terms = ["shim"]   # rare words that need no definition in this repo
+
+[rules.emphasis]           # R11
+# sincerity = ["genuinely", "exactly", "deliberately", "quietly", "silently"]
+# figurative = ["seam", "verdict", "load-bearing", "shape", "rung", "floor", ...]
+# min_count = 3            # per family; fewer hits than this never warn
+# max_per_1000 = 3.0       # per family; strong at twice this
