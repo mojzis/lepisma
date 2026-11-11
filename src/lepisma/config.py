@@ -98,12 +98,14 @@ def _str_list(raw: object, key: str) -> list[str]:
     return list(raw)
 
 
-# Acronyms a technical reader knows. Words the common-word list holds, such as
-# "API" and "URL", need no entry here.
+# Acronyms a technical reader knows. Capitals whose lowercase form is a common
+# word, such as "PATH" and "NOT", need no entry here.
 DEFAULT_KNOWN_ACRONYMS = [
-    "ASCII", "CD", "CI", "CLI", "CPU", "CSS", "CSV", "DNS", "EOF", "FAQ", "GPU",
-    "HTTPS", "IDE", "JSON", "LIX", "OK", "PID", "README", "SDK", "SQL", "SSH", "TCP",
-    "TODO", "TOML", "TTY", "UI", "URI", "UTF", "UUID", "XML", "YAML",
+    "AI", "API", "ASCII", "CD", "CI", "CLI", "CPU", "CSS", "CSV", "DNS", "EOF",
+    "EU", "FAQ", "GB", "GPU", "HTML", "HTTP", "HTTPS", "ID", "IDE", "IP", "JSON",
+    "KB", "LIX", "MB", "MIT", "OK", "OS", "PDF", "PID", "PR", "RAM", "README",
+    "REST", "SDK", "SMS", "SQL", "SSH", "TB", "TCP", "TODO", "TOML", "TTY", "UI",
+    "UK", "URI", "URL", "US", "UTC", "UTF", "UUID", "XML", "YAML",
 ]  # fmt: skip
 
 

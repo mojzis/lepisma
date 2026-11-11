@@ -520,7 +520,7 @@ def test_undefined_term_accepts_an_expansion_near_first_use(lint):
 
 
 def test_undefined_term_skips_known_acronyms_common_words_and_code(lint):
-    # JSON is on the known list; "api" and "path" are common words; `LSP` is code.
+    # API and JSON are on the known list; "path" is a common word; `LSP` is code.
     assert not r10(lint("The API returns JSON. Set PATH first. Run `LSP` now."))
 
 
@@ -530,19 +530,19 @@ def test_undefined_term_known_acronyms_are_configurable(lint):
 
 
 def test_undefined_term_flags_a_rare_word_used_often_only_on_request(lint):
-    text = "The shim starts first. Each shim reads the config. A shim then exits."
+    text = "The worktree starts. Each worktree reads the config. A worktree then exits."
     assert not r10(lint(text))
     (w,) = [w for w in lint(text, RARE) if w.rule == "R10"]
-    assert w.message.startswith('"shim" appears 3 times and is never defined')
+    assert w.message.startswith('"worktree" appears 3 times and is never defined')
 
 
 def test_undefined_term_accepts_a_definition(lint):
-    uses = " Each shim reads the config. One shim then exits."
+    uses = " Each worktree reads the config. One worktree then exits."
     for defined in (
-        "A shim is a small wrapper script.",
-        "The wrapper script (shim) starts first.",
-        "The launcher, called a shim, starts first.",
-        "The shim, a small wrapper script, starts first.",
+        "A worktree is a second checkout.",
+        "The second checkout (worktree) starts first.",
+        "The checkout, called a worktree, starts first.",
+        "The worktree, a second checkout, starts first.",
     ):
         assert not r10(lint(defined + uses, RARE)), defined
 
@@ -559,7 +559,7 @@ def test_undefined_term_skips_rare_words_that_are_names(lint):
 
 
 def test_undefined_term_needs_min_uses_and_ignores_common_words(lint):
-    assert not r10(lint("The shim starts first. The shim then exits.", RARE))
+    assert not r10(lint("The worktree starts first. The worktree then exits.", RARE))
     common = "The cache starts. The cache fills. The cache is flushed and cached."
     assert not r10(lint(common, RARE))
 

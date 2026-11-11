@@ -60,7 +60,7 @@ ignore = ["corpus/**", "CHANGELOG.md"]
 # extra_known = ["LSP"]    # acronyms that need no expansion in this repo
 # rare_terms = false       # also flag rare words used often and never defined
 # min_uses = 3             # uses in one document before a rare word counts
-# known_terms = ["shim"]   # rare words that need no definition in this repo
+# known_terms = ["worktree"] # rare words that need no definition in this repo
 
 [rules.emphasis]           # R11
 # sincerity = ["genuinely", "exactly", "deliberately", "quietly", "silently"]

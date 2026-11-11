@@ -199,20 +199,21 @@ Details:
   end of the next block, as in "Language Server Protocol (LSP)". It skips a short
   list of acronyms that technical readers know (`known_acronyms`, extended by
   `extra_known`). It also skips capitals whose lowercase form is a common English
-  word, like "API", "URL" and "PATH".
+  word, like "PATH" and "NOT".
 
-  `rare_terms = true` adds a second check. It flags a word that is not among the
-  30,000 most common English words, appears `min_uses` times or more, and is never
+  `rare_terms = true` adds a second check. It flags a word that is not in the
+  common-word list, appears `min_uses` times or more, and is never
   defined. A definition is "X is", "X means", "X (...)", "(X)", "called X", "X, a
   ..." or a glossary line. Words in the first heading, words that the document
   also writes as code, and `known_terms` are skipped. The check is off by default.
   In the toolbox docs two thirds of its hits were jargon that the readers know,
   such as "workspace", "stderr" and "docstring".
 
-  The word list is `data/common_words.txt.gz`, about 110 kB. It is the top of the
-  [wordfreq](https://github.com/rspeer/wordfreq) English list, and its data is
-  licensed CC BY-SA 4.0. Only the server and `check` read it. The hook client does
-  not.
+  The word list is `data/common_words.txt.gz`, about 170 kB. It holds 64,000
+  common English words with their inflections, taken from
+  [SCOWL](http://wordlist.aspell.net/) up to size 50. SCOWL has a permissive
+  licence in the MIT style, and its notice ships as `data/common_words.LICENSE`.
+  Only the server and `check` read the list. The hook client does not.
 
 <!-- lepisma: disable-next R11 -->
 - **R11** counts two word families, each on its own, and warns once per family at
@@ -351,7 +352,7 @@ Current numbers (warnings per 1,000 words):
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | bad | 2,698 | 7.4 | 3.3 | 41.9 | 8.5 | 0 | 0 | 3.3 | 0.4 | 0 | 0.4 | 0 | 65.2 |
 | good | 1,235 | 0 | 0 | 0.8 | 0 | 0 | 0 | 0 | 0 | 0 | 0.8 | 0 | 1.6 |
-| toolbox | 51,463 | 9.0 | 0.1 | 0.0 | 0.2 | 0.8 | 0.2 | 0.0 | 3.9 | 0.6 | 1.1 | 0.7 | 16.6 |
+| toolbox | 51,463 | 9.0 | 0.1 | 0.0 | 0.2 | 0.8 | 0.2 | 0.0 | 3.9 | 0.6 | 1.2 | 0.7 | 16.7 |
 
 R9 and later warn once per document, so their numbers stay small. R9 flags 30 of
 the 115 toolbox docs. R11 flags 26 for figurative terms and 8 for sincerity words.
