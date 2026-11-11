@@ -89,10 +89,10 @@ def post(port: int, route: str, payload: dict[str, Any], timeout_s: float) -> An
         return json.loads(resp.read())
 
 
-def healthy(port: int, timeout_s: float = 0.2) -> bool:
+def healthy(port: int) -> bool:
     """True when a lepisma server answers on ``port``."""
     try:
-        with urllib.request.urlopen(_url(port, "/health"), timeout=timeout_s) as resp:  # noqa: S310
+        with urllib.request.urlopen(_url(port, "/health"), timeout=0.2) as resp:  # noqa: S310
             return json.loads(resp.read()).get("status") == "ok"
     except (OSError, ValueError):
         return False

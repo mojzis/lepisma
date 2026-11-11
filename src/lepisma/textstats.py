@@ -32,10 +32,6 @@ def _hyphenator(lang: str) -> Pyphen:
     return Pyphen(lang=lang)
 
 
-def _syllables(token: Token, dic: Pyphen) -> int:
-    return max(1, dic.inserted(token.lower_).count("-") + 1)
-
-
 def _mean(values: Iterable[float]) -> float:
     values = list(values)
     return fmean(values) if values else NAN
@@ -51,7 +47,7 @@ def readability(doc: Doc) -> dict[str, float]:
             NAN,
         )
     dic = _hyphenator(doc.lang_)
-    syllables = [_syllables(t, dic) for t in words]
+    syllables = [max(1, dic.inserted(t.lower_).count("-") + 1) for t in words]
     syl_per_word = fmean(syllables)
     hard = sum(1 for s in syllables if s >= 3)  # noqa: PLR2004
     long_words = sum(1 for t in words if len(t) > 6)  # noqa: PLR2004
@@ -87,11 +83,12 @@ def pos_proportions(doc: Doc, tags: Iterable[str]) -> dict[str, float]:
     return {tag: counts[tag] / n if n else NAN for tag in tags}
 
 
-def duplicate_ngram_chr_fraction(doc: Doc, n: int = 5) -> float:
-    """Share of characters inside a token n-gram that occurs more than once.
+def duplicate_ngram_chr_fraction(doc: Doc) -> float:
+    """Share of characters inside a token 5-gram that occurs more than once.
 
     Overlapping duplicates are merged, so no character counts twice.
     """
+    n = 5
     chr_len = len(doc.text)
     if chr_len == 0:
         return 0.0

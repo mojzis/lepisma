@@ -552,6 +552,17 @@ wheels = [
 ]
 
 [[package]]
+name = "dermestes"
+version = "0.1.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/09/5a/eb3dc95fc09e2917a98612cc8a2385b1f176c0726f1d5670cfbce90b1bc4/dermestes-0.1.2.tar.gz", hash = "sha256:de6371055a1b07807912d49616d5939af86c00e896de73f190dbdb29c9ad667c", size = 909894, upload-time = "2026-10-28T17:36:23.39Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e4/55/15e4a3df5ef7a0cdc42c850a00222b3c5dbaffb65e44e24e4848a4ed7c50/dermestes-0.1.2-py3-none-macosx_11_0_arm64.whl", hash = "sha256:3a18e6115934aac542929eb1625ec730cd47c2a4bfa956c83a882e41bf804358", size = 1239305, upload-time = "2026-10-28T17:36:17.749Z" },
+    { url = "https://files.pythonhosted.org/packages/97/4b/c40657d980a465e73f247b314f71239d415b18d8c5f8c272169bf3c24b13/dermestes-0.1.2-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:abb3d36c8e7a0e653e9bb25b2783bcbd8d390482b7f02020abaadab3f7a02ebc", size = 1461512, upload-time = "2026-10-28T17:36:19.477Z" },
+    { url = "https://files.pythonhosted.org/packages/34/1c/e4789a3f9bbc590ca77cd2296faa16dde27a1e103656076e50c6408d9e74/dermestes-0.1.2-py3-none-win_amd64.whl", hash = "sha256:0e3d1b44d4d1fa0af4ed935b134a9093fa328cdc3bd97d829e4a04c6f20704e5", size = 1321584, upload-time = "2026-10-28T17:36:21.263Z" },
+]
+
+[[package]]
 name = "en-core-web-sm"
 version = "3.8.0"
 source = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" }
@@ -694,6 +705,7 @@ measure = [
 dev = [
     { name = "biston" },
     { name = "deptry" },
+    { name = "dermestes" },
     { name = "en-core-web-sm" },
     { name = "gerenuk" },
     { name = "httpx" },
@@ -726,6 +738,7 @@ provides-extras = ["measure"]
 dev = [
     { name = "biston" },
     { name = "deptry" },
+    { name = "dermestes", specifier = ">=0.1.2" },
     { name = "en-core-web-sm", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" },
     { name = "gerenuk" },
     { name = "httpx", specifier = ">=0.28.1" },

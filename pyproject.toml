@@ -53,6 +53,7 @@ dev = [
     "interrogate",
     "poethepoet",
     "httpx>=0.28.1",
+    "dermestes>=0.1.2",
 ]
 
 [tool.ruff]
@@ -106,6 +107,8 @@ extend_check = [
     # gerenuk scopes itself from the git diff, so no file list.
     # -o addopts= drops the --cov from [tool.pytest.ini_options]; the hook never reads coverage.
     { name = "gerenuk", cmd = "gerenuk run -- -q -o addopts=", pass_files = false, timeout_s = 120, max_output_lines = 120 },
+    # dermestes reports only what the working tree introduced against HEAD, so no file list.
+    { name = "dermestes", cmd = "dermestes", pass_files = false, timeout_s = 10, max_output_lines = 80 },
 ]
 
 [tool.biston.scan]
@@ -189,3 +192,5 @@ help = "Run all checks (report all failures)"
 [tool.poe.tasks.setup]
 cmd = "madoqua install"
 help = "Install the madoqua commit hook (sets core.hooksPath)"
+
+[tool.dermestes]
