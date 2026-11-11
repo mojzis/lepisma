@@ -54,3 +54,10 @@ ignore = ["corpus/**", "CHANGELOG.md"]
 [rules.contrast-frame]     # R9
 # min_count = 3            # fewer frames than this never warn
 # max_per_1000 = 4.0       # frames per 1,000 words; strong at twice this
+
+[rules.undefined-term]     # R10
+# known_acronyms = [...]   # replaces the built-in list
+# extra_known = ["LSP"]    # acronyms that need no expansion in this repo
+# rare_terms = false       # also flag rare words used often and never defined
+# min_uses = 3             # uses in one document before a rare word counts
+# known_terms = ["worktree"]   # rare words that need no definition in this repo

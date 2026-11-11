@@ -63,6 +63,14 @@ min_paren_words = {{interruption_load.min_paren_words}}
 # "X, not Y", "not X but Y", "rather than", "isn't X. It's Y"
 min_count = {{contrast_frame.min_count}}             # fewer frames than this never warn
 max_per_1000 = {{contrast_frame.max_per_1000}}        # strong at twice this
+
+[rules.undefined-term]             # R10, judged per document
+# known_acronyms = [...]           # replaces the built-in list
+# extra_known = ["LSP"]            # acronyms that need no expansion in this repo
+# also flag rare words that a document uses often and never defines
+rare_terms = {{undefined_term.rare_terms}}
+min_uses = {{undefined_term.min_uses}}                       # uses before a rare word counts
+# known_terms = ["worktree"]           # rare words that need no definition here
 ```
 
 Rules can be named by ID (`R2`) or name (`noun-stack`), here and in comments:

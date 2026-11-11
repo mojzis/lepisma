@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
+from lepisma import rules
 from lepisma.config import Config
 from lepisma.rules import contrast_offsets, interrupter_counts, is_word
 
@@ -44,7 +45,6 @@ COLUMNS = (
 MIN_COLON_TAIL = 2  # words after a colon for it to count as mid-sentence
 PUNCHLINE_WORDS = 6
 PUNCHLINE_AFTER = 12
-MIN_ACRONYM = 2
 
 _ARROW = re.compile("->|=>|\u2192|\u21d2")
 _COMPOUND = re.compile(r"\b[A-Za-z]+(?:-[A-Za-z]+){2,}\b")
@@ -88,19 +88,6 @@ _FINITE = {"VBZ", "VBD"}
 _ING_PREPS = frozenset(
     {"including", "according", "depending", "regarding", "following", "excluding"}
 )
-
-_ACRONYM = re.compile(r"^[A-Z]{2,6}s?$")
-# Acronyms a technical reader knows, and capitals used for stress.
-KNOWN_ACRONYMS = frozenset(
-    {
-        "API", "URL", "URI", "HTTP", "HTTPS", "JSON", "CLI", "CI", "CD", "ID", "HTML",
-        "CSS", "SQL", "PR", "OS", "UI", "YAML", "TOML", "CPU", "GPU", "RAM", "PDF",
-        "UTF", "ASCII", "README", "MIT", "AI", "IDE", "SDK", "XML", "CSV", "SSH",
-        "TCP", "IP", "DNS", "UUID", "REST", "FAQ", "EOF", "OK", "TODO", "FIXME",
-        "NOTE", "NOT", "MUST", "NEVER", "ALWAYS", "DO", "ONLY", "ALL", "ANY", "NO",
-        "AND", "OR", "WARNING", "IMPORTANT", "CODE", "TL", "DR", "US", "UK", "EU",
-    }
-)  # fmt: skip
 
 
 def interrupters(block: Block, sent: Span) -> dict[str, int]:
@@ -205,26 +192,6 @@ def sentence_signals(
     }
 
 
-def _expansion(acronym: str) -> re.Pattern[str]:
-    """Words whose initials spell ``acronym``: "Language Server Protocol"."""
-    filler = r"(?:(?:of|the|and|for|to|in)\s+)?"
-    parts = [rf"{re.escape(ch)}\w+" for ch in acronym]
-    return re.compile(r"\b" + (r"[\s-]+" + filler).join(parts), re.IGNORECASE)
-
-
 def unexpanded_acronyms(blocks: list[tuple[Block, Doc]]) -> list[str]:
-    """Acronyms never spelled out up to the block after their first use."""
-    first_use: dict[str, int] = {}
-    for idx, (block, doc) in enumerate(blocks):
-        for tok in doc:
-            if not _ACRONYM.match(tok.text) or block.in_code(tok.idx, tok.idx + 1):
-                continue
-            name = tok.text.rstrip("s")
-            if len(name) >= MIN_ACRONYM and name not in KNOWN_ACRONYMS:
-                first_use.setdefault(name, idx)
-    found = []
-    for name, idx in first_use.items():
-        near = " ".join(b.text for b, _ in blocks[: idx + 2])
-        if not _expansion(name).search(near):
-            found.append(name)
-    return sorted(found)
+    """R10's acronyms that are never spelled out near their first use."""
+    return sorted(name for name, _, _ in rules.unexpanded_acronyms(blocks, _DEFAULTS))

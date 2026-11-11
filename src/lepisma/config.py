@@ -98,6 +98,17 @@ def _str_list(raw: object, key: str) -> list[str]:
     return list(raw)
 
 
+# Acronyms a technical reader knows. Capitals whose lowercase form is a common
+# word, such as "PATH" and "NOT", need no entry here.
+DEFAULT_KNOWN_ACRONYMS = [
+    "AI", "API", "ASCII", "CD", "CI", "CLI", "CPU", "CSS", "CSV", "DNS", "EOF",
+    "EU", "FAQ", "GB", "GPU", "HTML", "HTTP", "HTTPS", "ID", "IDE", "IP", "JSON",
+    "KB", "LIX", "MB", "MIT", "OK", "OS", "PDF", "PID", "PR", "RAM", "README",
+    "REST", "SDK", "SMS", "SQL", "SSH", "TB", "TCP", "TODO", "TOML", "TTY", "UI",
+    "UK", "URI", "URL", "US", "UTC", "UTF", "UUID", "XML", "YAML",
+]  # fmt: skip
+
+
 class ConfigError(ValueError):
     """Raised for an invalid ``lepisma.toml``."""
 
@@ -204,6 +215,24 @@ class ContrastFrame:
 
 
 @dataclass(slots=True)
+class UndefinedTerm:
+    """R10 settings."""
+
+    enabled: bool = True
+    # Acronyms that need no expansion; `extra_known` in the config adds to it.
+    known_acronyms: list[str] = field(
+        default_factory=lambda: list(DEFAULT_KNOWN_ACRONYMS)
+    )
+    # Also flag rare words that a document uses often and never defines.
+    # Off by default: most hits in real docs are jargon the reader knows.
+    rare_terms: bool = False
+    # A rare word must appear this often in one document to count as a term.
+    min_uses: int = 3
+    # Rare words that need no definition in this repo (tool names, jargon).
+    known_terms: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
 class Server:
     """Local spaCy server settings."""
 
@@ -226,6 +255,7 @@ class Config:
     tidy_summary: TidySummary = field(default_factory=TidySummary)
     interruption_load: InterruptionLoad = field(default_factory=InterruptionLoad)
     contrast_frame: ContrastFrame = field(default_factory=ContrastFrame)
+    undefined_term: UndefinedTerm = field(default_factory=UndefinedTerm)
     server: Server = field(default_factory=Server)
 
     def is_ignored(self, path: str) -> bool:
@@ -247,6 +277,7 @@ RULES: dict[str, tuple[str, str]] = {
     "R7": ("tidy-summary", "tidy_summary"),
     "R8": ("interruption-load", "interruption_load"),
     "R9": ("contrast-frame", "contrast_frame"),
+    "R10": ("undefined-term", "undefined_term"),
 }
 
 
@@ -320,6 +351,9 @@ def from_dict(data: dict[str, Any]) -> Config:
         if attr == "nominalization" and "extra_stoplist" in settings:
             extra = _str_list(settings.pop("extra_stoplist"), "extra_stoplist")
             target.stoplist.extend(w.lower() for w in extra)
+        if attr == "undefined_term" and "extra_known" in settings:
+            extra = _str_list(settings.pop("extra_known"), "extra_known")
+            target.known_acronyms.extend(w.upper() for w in extra)
         _apply(target, settings, f"rules.{key}")
     if data:
         msg = f"unknown top-level setting(s): {', '.join(sorted(data))}"

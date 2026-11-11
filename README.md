@@ -123,13 +123,14 @@ The server log is in `~/.cache/lepisma/server.log`.
 | R7 | `tidy-summary` | a paragraph's last sentence opens with "Overall", "In summary", "This ensures" and the like | never |
 | R8 | `interruption-load` | one sentence holds 2 or more dashes, parentheses, semicolons or mid-sentence colons | 3 or more |
 | R9 | `contrast-frame` | a document holds 3 or more frames like "X, not Y", and more than 4 per 1,000 words | more than 8 per 1,000 words |
+| R10 | `undefined-term` | an acronym is not spelled out near its first use | never |
 
 Details:
 
 - **All rules** skip code blocks, inline code, tables, front matter, HTML and link
   targets. List items that hold only an identifier, like `- max_retries`, are skipped
   too.
-- **Headings** get R3 and R9 only. R7 looks at paragraphs and quotes only.
+- **Headings** get R3, R9 and R10 only. R7 looks at paragraphs and quotes only.
 - **R2** ignores runs made only of proper nouns, like "GitHub Actions CI". It also
   ignores runs with more than one proper noun (`max_proper_nouns`), like "Claude Code
   conversation logs". Inline code breaks a run, and a hyphenated word like
@@ -192,6 +193,27 @@ Details:
   and "does not X, but Y", which concedes. A block that disables R9 is left out
   of the count.
 
+- **R10** warns once per acronym, at its first use. An acronym is 2 to 6 capital
+  letters outside code. It passes when words with the same initials appear by the
+  end of the next block, as in "Language Server Protocol (LSP)". It skips a short
+  list of acronyms that technical readers know (`known_acronyms`, extended by
+  `extra_known`). It also skips capitals whose lowercase form is a common English
+  word, like "PATH" and "NOT".
+
+  `rare_terms = true` adds a second check. It flags a word that is not in the
+  common-word list, appears `min_uses` times or more, and is never
+  defined. A definition is "X is", "X means", "X (...)", "(X)", "called X", "X, a
+  ..." or a glossary line. Words in the first heading, words that the document
+  also writes as code, and `known_terms` are skipped. The check is off by default.
+  In the toolbox docs two thirds of its hits were jargon that the readers know,
+  such as "workspace", "stderr" and "docstring".
+
+  The word list is `data/common_words.txt.gz`, about 170 kB. It holds 64,000
+  common English words with their inflections, taken from
+  [SCOWL](http://wordlist.aspell.net/) up to size 50. SCOWL has a permissive
+  licence in the MIT style, and its notice ships as `data/common_words.LICENSE`.
+  Only the server and `check` read the list. The hook client does not.
+
   About half of the R8 hits in the toolbox docs are in sentences of 25 words or
   fewer, which R1 never sees.
 
@@ -213,7 +235,7 @@ It writes four files:
   verb position and the longest noun run.
 - `sections.parquet` and `files.parquet`: sentence length as mean, median, p90 and
   max, and the share of sentences over 25 and 35 words. Readability as Flesch
-  reading ease, Flesch-Kincaid grade, Gunning Fog and LIX. Part-of-speech shares and
+  reading ease, Flesch-Kincaid grade, Gunning Fog and the LIX index. Part-of-speech shares and
   the noun-to-verb ratio. Nominalizations per 100 words, repeated 5-grams, and habit
   words per 1,000 words.
 - `report.md`: medians and p90s, the 15 hardest files and sections, the 30 hardest
@@ -313,11 +335,11 @@ further.
 
 Current numbers (warnings per 1,000 words):
 
-| Set | Words | R1 | R2 | R3 | R4 | R5 | R6 | R7 | R8 | R9 | Total |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| bad | 2,698 | 7.4 | 3.3 | 41.9 | 8.5 | 0 | 0 | 3.3 | 0.4 | 0 | 64.9 |
-| good | 1,235 | 0 | 0 | 0.8 | 0 | 0 | 0 | 0 | 0 | 0 | 0.8 |
-| toolbox | 51,463 | 9.0 | 0.1 | 0.0 | 0.2 | 0.8 | 0.2 | 0.0 | 3.9 | 0.6 | 14.8 |
+| Set | Words | R1 | R2 | R3 | R4 | R5 | R6 | R7 | R8 | R9 | R10 | Total |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| bad | 2,698 | 7.4 | 3.3 | 41.9 | 8.5 | 0 | 0 | 3.3 | 0.4 | 0 | 0.4 | 65.2 |
+| good | 1,235 | 0 | 0 | 0.8 | 0 | 0 | 0 | 0 | 0 | 0 | 0.8 | 1.6 |
+| toolbox | 51,463 | 9.0 | 0.1 | 0.0 | 0.2 | 0.8 | 0.2 | 0.0 | 3.9 | 0.6 | 1.2 | 16.0 |
 
 R9 and later warn once per document, so their numbers stay small. R9 flags 30 of
 the 115 toolbox docs.
@@ -349,7 +371,7 @@ either synthetic set. The next rules target that gap.
 5. Expand: ~~late main verb~~, ~~vague "this"~~, ~~summary filler~~. Next: passive
    voice per paragraph, deep nesting, too many parentheses, undefined acronyms,
    repeated openings and Flesch score.
-   Add an optional LLM judge in CI.
+   Add an optional large language model (LLM) judge in CI.
 6. Port the useful rules to Rust (harper-core and Weir) if speed or distribution
    becomes a problem.
 
