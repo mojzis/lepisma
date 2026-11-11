@@ -263,6 +263,17 @@ class Server:
     timeout_ms: int = 300
 
 
+MAX_SHINGLE_K = 255  # the chunk table stores k as one byte
+
+
+@dataclass(slots=True)
+class Chunks:
+    """``lepisma chunks`` settings."""
+
+    # Tokens per shingle. Tables made with different values do not compare.
+    shingle_k: int = 5
+
+
 @dataclass(slots=True)
 class Config:
     """Full linter configuration."""
@@ -281,6 +292,7 @@ class Config:
     undefined_term: UndefinedTerm = field(default_factory=UndefinedTerm)
     emphasis: Emphasis = field(default_factory=Emphasis)
     server: Server = field(default_factory=Server)
+    chunks: Chunks = field(default_factory=Chunks)
 
     def is_ignored(self, path: str) -> bool:
         """Return True when ``path`` matches an ``ignore`` glob or a wrong suffix."""
@@ -362,6 +374,10 @@ def from_dict(data: dict[str, Any]) -> Config:
             e.lower() for e in _str_list(data.pop("extensions"), "extensions")
         ]
     _apply(cfg.server, data.pop("server", {}), "server")
+    _apply(cfg.chunks, data.pop("chunks", {}), "chunks")
+    if not 1 <= cfg.chunks.shingle_k <= MAX_SHINGLE_K:
+        msg = f"[chunks] shingle_k must be between 1 and {MAX_SHINGLE_K}"
+        raise ConfigError(msg)
     for key, values in data.pop("rules", {}).items():
         rid = rule_id(key)
         if rid is None:

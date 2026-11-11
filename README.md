@@ -95,6 +95,7 @@ it runs even when the rest of the hook ends in `exec`.
 | `lepisma check PATH...` | Lint files or folders in-process, no server. `--format json`, `--strict` exits 1 on warnings. |
 | `lepisma stats PATH...` | Warnings per 1,000 words per file and rule, one table per path. |
 | `lepisma measure PATH...` | Readability stats for whole docs. Writes Parquet tables and `report.md` to `--out` (default `stats/`). Needs the `measure` extra. |
+| `lepisma chunks [PATH...]` | One Parquet row per paragraph, list or blockquote, with stable IDs and hashes. Writes `--out` (default `chunks.parquet`). Needs the `measure` extra. See [Exporting chunks](#exporting-chunks). |
 | `lepisma hook [FILE...]` | What the git hook runs. Lints the given files, or asks git for the staged docs. `--wait 10` waits for the server instead of skipping. |
 | `lepisma serve` | Run the server in the foreground. `--idle-timeout 0` keeps it up. |
 | `lepisma stop` | Stop the server, for example after an upgrade. |
@@ -297,6 +298,87 @@ render(result, min_words=100)  # the report as Markdown
 ```
 
 `result.sentences`, `.sections` and `.files` are Polars data frames.
+
+## Exporting chunks
+
+`lepisma chunks` writes one Parquet row for each paragraph, list and blockquote
+in a set of docs. Each row has hashes of its text. A separate tool can use them
+to find passages that repeat within a repo or across repos. lepisma only
+describes the docs. It does not compare chunks or report duplicates.
+
+```
+uv add --dev "lepisma[measure]"
+uv run lepisma chunks --out chunks.parquet
+```
+
+With no path it reads the whole repo. It finds and ignores files the way
+`measure` does, and `--no-ignore` works the same. `--repo NAME` sets the `repo`
+column. The default is the last part of the `origin` remote's URL, or the name
+of the root folder when there is no remote.
+
+A list is one chunk, with all its items. Code blocks, tables, front matter and
+HTML are skipped. A heading is not a chunk. It goes into `heading_path`.
+
+Every hash is made from a normalized form of the text:
+
+1. Markup is stripped. A link becomes its link text, emphasis markers go, and
+   inline code keeps its content.
+2. The text is put in Unicode's compatibility form (`NFKC`) and lowercased.
+3. Each run of word characters is a token. Punctuation is dropped.
+
+So a chunk keeps its hashes when its lines are rewrapped, its case changes or
+emphasis is added.
+
+| Column | Type | Meaning |
+| --- | --- | --- |
+| `repo` | str | See `--repo`. |
+| `path` | str | Relative to the repo root, with `/` separators. |
+| `heading_path` | list[str] | The headings above the chunk, outermost first. |
+| `kind` | str | `paragraph`, `list` or `blockquote`. |
+| `line_start`, `line_end` | u32 | First and last source line, counted from 1. |
+| `text` | str | The source lines of the chunk, as written. |
+| `norm_text` | str | The tokens joined by single spaces. |
+| `n_words` | u32 | Number of tokens. |
+| `text_hash` | u64 | Hash of `norm_text`. The same passage has the same hash in any file or repo. |
+| `chunk_id` | u64 | Hash of `path`, the normalized headings, `norm_text` and `occurrence`. |
+| `lemmas` | list[str] | spaCy lemmas of the nouns, proper nouns, verbs, adjectives and numbers. Lowercased, in order, with repeats and without stopwords. |
+| `shingles` | list[u64] | Sorted, distinct hashes of every run of `shingle_k` tokens. A shorter chunk has one hash of all its tokens. |
+| `shingle_k` | u8 | Tokens per shingle. Set it with `shingle_k` under `[chunks]` in `lepisma.toml`; the default is 5. |
+| `norm_version` | u8 | Rises when normalization or hashing changes. Compare only rows with the same value. |
+
+`occurrence` counts from 0 the earlier chunks in the same file, under the same
+headings, with the same `norm_text`. It keeps the IDs of repeated paragraphs
+apart. `chunk_id` does not use line numbers, so an edit above a chunk leaves
+its ID alone. It does not use `repo` either, so the key across repos is `repo`
+plus `chunk_id`.
+
+Each hash is blake2b with an 8-byte digest, read as a big-endian unsigned
+integer. Rows are sorted by `path` and `line_start`. The same docs give the
+same table on every run and machine.
+
+This DuckDB query lists pairs of chunks by the number of shingles they share.
+It is an example of how to read the table, not part of lepisma:
+
+```sql
+WITH s AS (
+    SELECT repo, path, line_start, chunk_id, unnest(shingles) AS shingle
+    FROM 'chunks.parquet'
+    WHERE n_words >= 20
+)
+SELECT a.path || ':' || a.line_start AS left_chunk,
+       b.path || ':' || b.line_start AS right_chunk,
+       count(*) AS shared
+FROM s AS a
+JOIN s AS b
+  ON a.shingle = b.shingle
+ AND (a.repo, a.chunk_id) < (b.repo, b.chunk_id)
+GROUP BY ALL
+ORDER BY shared DESC
+LIMIT 50;
+```
+
+To compare repos, run `lepisma chunks` in each and read the files together with
+`read_parquet(['a.parquet', 'b.parquet'])`.
 
 ## Configuration
 

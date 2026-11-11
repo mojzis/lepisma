@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import os
+import re
 import shutil
 import subprocess
 import sys
@@ -76,6 +78,63 @@ def cmd_stats(args: argparse.Namespace) -> int:
     return 0
 
 
+def _no_extra(command: str, exc: ImportError) -> int:
+    """Say which extra ``command`` lacks; the exit code for that."""
+    print(  # noqa: T201
+        f"lepisma: {command} needs the 'measure' extra ({exc.name} missing); "
+        'install "lepisma[measure]"',
+        file=sys.stderr,
+    )
+    return 2
+
+
+def _git(root: Path, *args: str) -> str:
+    """Output of a git command run in ``root``; empty when git fails."""
+    try:
+        done = subprocess.run(  # noqa: S603
+            ["git", *args],  # noqa: S607
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return ""
+    return done.stdout.strip() if done.returncode == 0 else ""
+
+
+def cmd_chunks(args: argparse.Namespace) -> int:
+    """One Parquet row per prose chunk, with stable IDs and hashes."""
+    from lepisma.config import from_dict, load_raw  # noqa: PLC0415
+
+    try:
+        from lepisma.chunks import chunk_docs  # noqa: PLC0415
+    except ImportError as exc:
+        return _no_extra("chunks", exc)
+    cwd = Path.cwd()
+    cfg = from_dict(load_raw(cwd))
+    root = Path(_git(cwd, "rev-parse", "--show-toplevel") or cwd).resolve()
+    # The root is named relative to here, as `measure .` would name it, so
+    # that `ignore` globs match the same files.
+    paths = args.paths or [os.path.relpath(root, cwd)]
+    files = _collect(paths, cfg, use_ignore=not args.no_ignore)
+    if not files:
+        print("lepisma: no docs found", file=sys.stderr)  # noqa: T201
+        return 1
+    url = _git(root, "remote", "get-url", "origin").rstrip("/").removesuffix(".git")
+    repo = args.repo or re.split(r"[/:]", url)[-1] or root.name
+    docs = {
+        Path(os.path.relpath(f.resolve(), root)).as_posix(): f.read_text("utf-8")
+        for f in files
+    }
+    table = chunk_docs(docs, repo, cfg.chunks.shingle_k)
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    table.write_parquet(out)
+    print(f"wrote {out}: {table.height} chunks from {len(docs)} docs")  # noqa: T201
+    return 0
+
+
 def cmd_measure(args: argparse.Namespace) -> int:
     """Readability stats for whole docs: Parquet tables plus report.md."""
     from lepisma.config import from_dict, load_raw  # noqa: PLC0415
@@ -84,12 +143,7 @@ def cmd_measure(args: argparse.Namespace) -> int:
         from lepisma.measure import Measurer  # noqa: PLC0415
         from lepisma.measure_report import print_summary, render  # noqa: PLC0415
     except ImportError as exc:
-        print(  # noqa: T201
-            f"lepisma: measure needs the 'measure' extra ({exc.name} missing); "
-            'install "lepisma[measure]"',
-            file=sys.stderr,
-        )
-        return 2
+        return _no_extra("measure", exc)
     cfg = from_dict(load_raw(Path.cwd()))
     files = _collect(args.paths, cfg, use_ignore=not args.no_ignore)
     if not files:
@@ -240,6 +294,27 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-ignore", action="store_true", help="also measure files matching ignore"
     )
     p.set_defaults(func=cmd_measure)
+
+    p = sub.add_parser(
+        "chunks",
+        help="one Parquet row per prose chunk, with stable IDs and hashes "
+        "(needs the measure extra)",
+    )
+    p.add_argument("paths", nargs="*", help="files or folders (default: repo root)")
+    p.add_argument(
+        "--out", default="chunks.parquet", help="output file (default: chunks.parquet)"
+    )
+    p.add_argument(
+        "--repo",
+        default=None,
+        metavar="NAME",
+        help="value of the repo column (default: the name in the origin remote's "
+        "URL, else the root folder's name)",
+    )
+    p.add_argument(
+        "--no-ignore", action="store_true", help="also chunk files matching ignore"
+    )
+    p.set_defaults(func=cmd_chunks)
 
     p = sub.add_parser("hook", help="pre-commit hook: lint staged docs via the server")
     p.add_argument(

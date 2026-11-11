@@ -51,6 +51,37 @@ _INLINE = re.compile(
 )
 
 
+def strip_inline(text: str) -> str:
+    """Drop inline markup from ``text`` and keep every word.
+
+    Links become their link text, emphasis markers go, and inline code and URLs
+    keep their content. The lint path replaces those two with ``PLACEHOLDER``
+    (see :meth:`Block.finish`); this is for callers that hash or index the words.
+    """
+    out: list[str] = []
+    pos = 0
+    for m in _INLINE.finditer(text):
+        out.append(text[pos : m.start()])
+        pos = m.end()
+        kind = m.lastgroup
+        if kind == "code":
+            ticks = len(m.group("ticks"))
+            out.append(m.group()[ticks:-ticks])
+        elif kind == "link":
+            out.append(strip_inline(m.group("ltext")))
+        elif kind == "auto":
+            out.append(m.group()[1:-1])
+        elif kind == "url":
+            out.append(m.group())
+        elif kind == "escape":
+            out.append(m.group()[1:])
+        elif kind in {"image", "html"}:
+            out.append(" ")  # dropped; the space keeps its neighbours apart
+        # emph: dropped with no space, so "**bo**ld" stays one word
+    out.append(text[pos:])
+    return "".join(out)
+
+
 @dataclass(slots=True)
 class Block:
     """One paragraph, list item, heading or quote as plain text."""

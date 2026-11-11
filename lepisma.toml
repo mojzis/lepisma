@@ -11,6 +11,10 @@ ignore = ["corpus/**", "CHANGELOG.md"]
 # Skip quietly when the server takes longer than this.
 # timeout_ms = 300
 
+[chunks]
+# Tokens per shingle in `lepisma chunks`. Tables with different values do not compare.
+# shingle_k = 5
+
 [rules.long-sentence]      # R1
 # enabled = true
 # max_words = 25

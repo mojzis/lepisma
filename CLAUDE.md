@@ -21,6 +21,11 @@ using the CLI.
   the library API (`Measurer`). `measure_report.py` builds the scores and
   `report.md`. Both need the `measure` extra (Polars, Pyphen), so keep
   them off the lint and hook path.
+- `chunks.py` is `lepisma chunks`: one Parquet row per paragraph, list or
+  blockquote, with hashes for a separate tool that finds repeated passages. It
+  describes docs and never compares chunks. It needs the `measure` extra too.
+  Bump `NORM_VERSION` when normalization or hashing changes; the golden test in
+  `tests/test_chunks.py` fails when they do.
 - `data/common_words.txt.gz` holds 64,000 common English words, from SCOWL up to
   size 50. Its licence notice is `data/common_words.LICENSE`; keep the two
   together. R10 reads the list through `rules.common_words()`.

@@ -14,6 +14,10 @@ port = {{server.port}}
 # the hook skips when the server is slower than this
 timeout_ms = {{server.timeout_ms}}
 
+[chunks]
+# tokens per shingle in `lepisma chunks`; tables with different values do not compare
+shingle_k = {{chunks.shingle_k}}
+
 [rules.long-sentence]              # R1
 enabled = true
 max_words = {{long_sentence.max_words}}
@@ -94,6 +98,7 @@ Rules can be named by ID (`R2`) or name (`noun-stack`), here and in comments:
 - `lepisma check`: 0; 1 with `--strict` when there are warnings.
 - `lepisma hook`: always 0.
 - `lepisma measure`: 1 when no docs are found, 2 without the `measure` extra.
+- `lepisma chunks`: 1 when no docs are found, 2 without the `measure` extra.
 - `lepisma stop`: 1 when no server is running.
 - `lepisma guide`: 0; 1 only if stdout cannot be written.
 
