@@ -58,6 +58,11 @@ strong_at = {{interruption_load.strong_at}}
 label_words = {{interruption_load.label_words}}
 # a parenthesis with fewer words is a gloss ("`-d` (docs)"), not an aside
 min_paren_words = {{interruption_load.min_paren_words}}
+
+[rules.contrast-frame]             # R9, judged per document
+# "X, not Y", "not X but Y", "rather than", "isn't X. It's Y"
+min_count = {{contrast_frame.min_count}}             # fewer frames than this never warn
+max_per_1000 = {{contrast_frame.max_per_1000}}        # strong at twice this
 ```
 
 Rules can be named by ID (`R2`) or name (`noun-stack`), here and in comments:

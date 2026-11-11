@@ -23,3 +23,8 @@ The importer reads each row and writes it to the table. Overall, the import is s
 
 <!-- R8 -->
 The cache — a plain dict — holds the parsed files (one for each path); nothing else is kept.
+
+<!-- R9 -->
+# A report, not a gate
+
+The hook is an inventory, not a verdict. It lists findings rather than blocking the commit. The exit code isn't a judgment. It's a count.

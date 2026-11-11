@@ -10,7 +10,7 @@ import re
 from typing import TYPE_CHECKING
 
 from lepisma.config import Config
-from lepisma.rules import interrupter_counts, is_word
+from lepisma.rules import contrast_offsets, interrupter_counts, is_word
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -50,16 +50,6 @@ _ARROW = re.compile("->|=>|\u2192|\u21d2")
 _COMPOUND = re.compile(r"\b[A-Za-z]+(?:-[A-Za-z]+){2,}\b")
 _BOLD = re.compile(r"(\*\*|__)(?=\S)(.+?)(?<=\S)\1")
 
-_CONTRAST = re.compile(
-    r"\bnot\b[^.;:()]{1,60}?\bbut\b"  # not X but Y
-    r"|,\s+not\b"  # X, not Y
-    r"|\brather than\b",
-    re.IGNORECASE,
-)
-_NEGATED = re.compile(r"\b(?:is|are|was|were|does|do)(?:n't|n\u2019t| not)\b", re.I)
-_CORRECTS = re.compile(
-    r"^\W*(?:it|that|this|they)(?:'s|\u2019s|'re|\u2019re| is| are)\b", re.I
-)
 
 SINCERITY = frozenset({"genuinely", "exactly", "deliberately", "quietly", "silently"})
 FIGURATIVE = frozenset(
@@ -126,12 +116,8 @@ def interrupters(block: Block, sent: Span) -> dict[str, int]:
 
 
 def contrast_frames(text: str, prev: str = "") -> int:
-    """ "not X but Y", "X, not Y", "rather than", and "isn't X. It's Y" when
-    ``prev`` is the sentence before."""
-    count = len(_CONTRAST.findall(text))
-    if prev and _NEGATED.search(prev) and _CORRECTS.match(text):
-        count += 1
-    return count
+    """R9's contrast frames in one sentence; ``prev`` is the sentence before."""
+    return len(contrast_offsets(text, prev))
 
 
 def _outside_code(block: Block, sent: Span) -> Iterable[Token]:

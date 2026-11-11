@@ -50,3 +50,7 @@ ignore = ["corpus/**", "CHANGELOG.md"]
 # strong_at = 3
 # label_words = 4          # a dash or colon after this few words marks a label
 # min_paren_words = 3      # a shorter parenthesis is a gloss, not an aside
+
+[rules.contrast-frame]     # R9
+# min_count = 3            # fewer frames than this never warn
+# max_per_1000 = 4.0       # frames per 1,000 words; strong at twice this
