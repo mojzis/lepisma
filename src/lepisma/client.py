@@ -16,6 +16,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -175,18 +176,23 @@ def read_staged(root: Path, path: str) -> str:
 
 
 def run_hook(
-    files: list[str] | None = None, *, fmt: str = "text", wait_s: float = 0.0
+    files: list[str] | None = None,
+    *,
+    fmt: str = "text",
+    wait_s: float = 0.0,
+    glossaries: Sequence[str] = (),
 ) -> int:
     """Entry point for the pre-commit hook. Always returns 0.
 
     ``files`` are paths relative to the repo root, as madoqua passes them. Without
-    them the hook asks git for the staged docs itself.
+    them the hook asks git for the staged docs itself. Glossary files are read
+    here and sent inline in the config, so the server never opens them.
     """
     if os.environ.get("LEPISMA_DISABLE") == "1":
         return 0
     try:
         root = Path(_git("rev-parse", "--show-toplevel").strip())
-        raw_cfg = load_raw(root)
+        raw_cfg = load_raw(root, glossaries)
         cfg = from_dict(raw_cfg)
         candidates = files if files else staged_files(root, cfg.extensions)
         paths = [p for p in candidates if not cfg.is_ignored(p)]
