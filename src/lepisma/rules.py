@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import gzip
 import re
 from collections.abc import Callable, Iterator
+from functools import cache
+from importlib.resources import files
 from typing import TYPE_CHECKING
 
 from lepisma.models import Finding
@@ -809,6 +812,149 @@ def contrast_frame(parsed: Parsed, cfg: Config) -> Iterator[tuple[int, Finding]]
     )
 
 
+@cache
+def common_words() -> frozenset[str]:
+    """The 30,000 most frequent English words, from the bundled list."""
+    raw = files("lepisma").joinpath("data", "common_words.txt.gz").read_bytes()
+    return frozenset(gzip.decompress(raw).decode("utf-8").split())
+
+
+_ACRONYM = re.compile(r"[A-Z]{2,6}s?")
+_CODE_SPAN = re.compile(r"`+([^`]+)`+")
+_NAME = re.compile(r"[A-Za-z]{4,}")
+_TERM = re.compile(r"[a-z]{4,}")
+_TERM_POS = {"NOUN", "VERB", "ADJ"}
+_ENDINGS = ("s", "es", "ed", "d", "ing", "ly", "er", "ers")
+
+
+def _is_common(tok: Token) -> bool:
+    """True when the word, its lemma or the word minus an ending is common."""
+    common = common_words()
+    lower = tok.lower_
+    forms = {lower, tok.lemma_.lower()}
+    for ending in _ENDINGS:
+        if lower.endswith(ending):
+            stem = lower[: -len(ending)]
+            forms.update((stem, stem + "e"))
+            if len(stem) > 1 and stem[-1] == stem[-2]:
+                forms.add(stem[:-1])  # "spawnning" style doubling
+    return not forms.isdisjoint(common)
+
+
+def _spelled_out(acronym: str, text: str) -> bool:
+    """True when ``text`` holds words whose initials spell ``acronym``."""
+    filler = r"(?:(?:of|the|and|for|to|in)\s+)?"
+    parts = [rf"{re.escape(ch)}\w+" for ch in acronym]
+    pattern = r"\b" + (r"[\s-]+" + filler).join(parts)
+    return re.search(pattern, text, re.IGNORECASE) is not None
+
+
+def _is_defined(term: str, text: str) -> bool:
+    """True when ``text`` says what ``term`` is: "X is ...", "X means ...",
+    "X (...)", "(X)", "called X", "X, a ..." or a glossary line "X: ..."."""
+    x = rf"\b{re.escape(term)}(?:e?s)?\b"
+    pattern = (
+        rf"{x} (?:is|are|means|mean|refers to|stands for)\b"
+        rf"|{x}\s*\("
+        rf"|\((?:or |a |an |the |its )?{x}\s*\)"
+        rf"|\b(?:called|named|termed|known as)(?: an?| the)? {x}"
+        rf"|{x}, (?:an?|the|which|i\.e\.|that is)\b"
+        rf"|(?:^|\n){x}\s*(?::|\u2014| - | -- )"
+    )
+    return re.search(pattern, text, re.IGNORECASE) is not None
+
+
+def _first_uses(
+    parsed: Parsed, cfg: Config
+) -> tuple[dict[str, tuple[int, int]], dict[str, tuple[int, int, int]]]:
+    """Where each acronym first appears, and each rare word with its count.
+
+    Acronyms map to (block index, offset); rare words to (block, offset, uses).
+    """
+    rule = cfg.undefined_term
+    known = set(rule.known_acronyms)
+    # A word the document also writes as code is a name: `pytest`, `stderr`.
+    known_terms = {w.lower() for w in rule.known_terms} | {
+        word.lower()
+        for block, _ in parsed
+        for span in _CODE_SPAN.findall(" ".join(block.raw))
+        for word in _NAME.findall(span)
+    }
+    common = common_words()
+    acronyms: dict[str, tuple[int, int]] = {}
+    terms: dict[str, tuple[int, int, int]] = {}
+    for idx, (block, doc) in enumerate(parsed):
+        if "R10" in block.disabled:
+            continue
+        for tok in doc:
+            if block.in_code(tok.idx, tok.idx + len(tok)):
+                continue
+            text = tok.text
+            if _ACRONYM.fullmatch(text):
+                name = text.rstrip("s")
+                if name not in known and name.lower() not in common:
+                    acronyms.setdefault(name, (idx, tok.idx))
+            elif (
+                rule.rare_terms
+                and _TERM.fullmatch(text)
+                and tok.pos_ in _TERM_POS
+                and text not in known_terms
+                and not _is_common(tok)
+            ):
+                at = terms.get(text, (idx, tok.idx, 0))
+                terms[text] = (at[0], at[1], at[2] + 1)
+    return acronyms, terms
+
+
+def unexpanded_acronyms(parsed: Parsed, cfg: Config) -> list[tuple[str, int, int]]:
+    """(acronym, block index, offset) for each acronym that is not spelled out
+    near its first use: up to and including the block after it."""
+    acronyms, _ = _first_uses(parsed, cfg)
+    texts = [block.text for block, _ in parsed]
+    return [
+        (name, idx, offset)
+        for name, (idx, offset) in acronyms.items()
+        if not _spelled_out(name, " ".join(texts[: idx + 2]))
+    ]
+
+
+def undefined_term(parsed: Parsed, cfg: Config) -> Iterator[tuple[int, Finding]]:
+    """R10: an acronym never spelled out, or a rare word used often and never
+    defined."""
+    rule = cfg.undefined_term
+    for name, idx, offset in unexpanded_acronyms(parsed, cfg):
+        yield (
+            idx,
+            Finding(
+                rule="R10",
+                offset=offset,
+                message=(
+                    f'"{name}" is never spelled out; write the full name at its '
+                    f'first use, then "({name})".'
+                ),
+            ),
+        )
+    _, terms = _first_uses(parsed, cfg)
+    texts = [block.text for block, _ in parsed]
+    whole = "\n".join(texts)
+    title = next((b.text.lower() for b, _ in parsed if b.kind == "heading"), "")
+    for term, (idx, offset, uses) in terms.items():
+        # The first heading names the subject; the document as a whole defines it.
+        if uses < rule.min_uses or term in title or _is_defined(term, whole):
+            continue
+        yield (
+            idx,
+            Finding(
+                rule="R10",
+                offset=offset,
+                message=(
+                    f'"{term}" appears {uses} times and is never defined; say what '
+                    "it means at its first use, or use a plainer word."
+                ),
+            ),
+        )
+
+
 RuleFn = Callable[["Block", "Doc", "Config"], Iterator[Finding]]
 
 RULE_FUNCS: dict[str, RuleFn] = {
@@ -827,4 +973,5 @@ DocRuleFn = Callable[["Parsed", "Config"], Iterator[tuple[int, Finding]]]
 
 DOC_RULE_FUNCS: dict[str, DocRuleFn] = {
     "R9": contrast_frame,
+    "R10": undefined_term,
 }

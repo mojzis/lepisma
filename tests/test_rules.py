@@ -491,3 +491,74 @@ def test_contrast_frame_skips_plain_negation_and_additions(lint):
 def test_contrast_frame_leaves_out_disabled_blocks(lint):
     text = CONTRASTS.replace("It lists", "<!-- lepisma: disable-next R9 -->\nIt lists")
     assert not r9(lint(text))
+
+
+def r10(warnings):
+    return [w.message.split('"')[1] for w in warnings if w.rule == "R10"]
+
+
+RARE = from_dict({"rules": {"undefined-term": {"rare_terms": True}}})
+
+
+def test_undefined_term_flags_an_acronym_never_spelled_out(lint):
+    (w,) = [
+        w for w in lint("The daemon speaks LSP.\n\nLSP is fast.") if w.rule == "R10"
+    ]
+    assert (w.line, w.col) == (1, 19)  # the first use only
+    assert w.message == (
+        '"LSP" is never spelled out; write the full name at its first use, '
+        'then "(LSP)".'
+    )
+
+
+def test_undefined_term_accepts_an_expansion_near_first_use(lint):
+    assert not r10(lint("It speaks the Language Server Protocol (LSP)."))
+    assert not r10(lint("It speaks LSP.\n\nLSP is the Language Server Protocol."))
+    # Three blocks later is too late for the reader.
+    late = "It speaks LSP.\n\nOne.\n\nTwo.\n\nThe Language Server Protocol."
+    assert r10(lint(late)) == ["LSP"]
+
+
+def test_undefined_term_skips_known_acronyms_common_words_and_code(lint):
+    # JSON is on the known list; "api" and "path" are common words; `LSP` is code.
+    assert not r10(lint("The API returns JSON. Set PATH first. Run `LSP` now."))
+
+
+def test_undefined_term_known_acronyms_are_configurable(lint):
+    cfg = from_dict({"rules": {"R10": {"extra_known": ["lsp"]}}})
+    assert not r10(lint("The daemon speaks LSP.", cfg))
+
+
+def test_undefined_term_flags_a_rare_word_used_often_only_on_request(lint):
+    text = "The shim starts first. Each shim reads the config. A shim then exits."
+    assert not r10(lint(text))
+    (w,) = [w for w in lint(text, RARE) if w.rule == "R10"]
+    assert w.message.startswith('"shim" appears 3 times and is never defined')
+
+
+def test_undefined_term_accepts_a_definition(lint):
+    uses = " Each shim reads the config. One shim then exits."
+    for defined in (
+        "A shim is a small wrapper script.",
+        "The wrapper script (shim) starts first.",
+        "The launcher, called a shim, starts first.",
+        "The shim, a small wrapper script, starts first.",
+    ):
+        assert not r10(lint(defined + uses, RARE)), defined
+
+
+def test_undefined_term_skips_rare_words_that_are_names(lint):
+    uses = "Then gerenuk reads the diff. Last, gerenuk picks the tests."
+    # In the title, written as code elsewhere, or listed in known_terms.
+    assert not r10(lint("# gerenuk\n\nFirst gerenuk starts. " + uses, RARE))
+    assert not r10(lint("Run `gerenuk run`. First gerenuk starts. " + uses, RARE))
+    cfg = from_dict(
+        {"rules": {"R10": {"rare_terms": True, "known_terms": ["gerenuk"]}}}
+    )
+    assert not r10(lint("First gerenuk starts. " + uses, cfg))
+
+
+def test_undefined_term_needs_min_uses_and_ignores_common_words(lint):
+    assert not r10(lint("The shim starts first. The shim then exits.", RARE))
+    common = "The cache starts. The cache fills. The cache is flushed and cached."
+    assert not r10(lint(common, RARE))

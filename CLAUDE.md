@@ -9,8 +9,8 @@ using the CLI.
 - `markdown.py` turns Markdown into prose blocks and maps each character back to its
   line and column. It drops code, tables, front matter and HTML. Inline code becomes
   the `CODE` placeholder.
-- `rules.py` holds R1 to R9. R1 to R8 are `(block, doc, cfg) -> Iterator[Finding]`.
-  R9 judges a whole document: `(parsed, cfg) -> Iterator[(block index, Finding)]`,
+- `rules.py` holds R1 to R10. R1 to R8 are `(block, doc, cfg) -> Iterator[Finding]`.
+  R9 and R10 judge a whole document: `(parsed, cfg) -> Iterator[(block index, Finding)]`,
   listed in `DOC_RULE_FUNCS`.
 - `engine.py` runs spaCy and the rules. Only it, `server.py` and `measure.py` import
   spaCy.
@@ -21,6 +21,8 @@ using the CLI.
   the library API (`Measurer`). `measure_report.py` builds the scores and
   `report.md`. Both need the `measure` extra (Polars, Pyphen), so keep
   them off the lint and hook path.
+- `data/common_words.txt.gz` is the 30,000 most common English words, from
+  wordfreq (CC BY-SA 4.0). R10 reads it through `rules.common_words()`.
 - `signals.py` counts the patterns of current Claude prose for `measure`:
   interrupters, contrast frames, emphasis families, compression and unexpanded
   acronyms. They are measurements, not rules. It imports spaCy types only.

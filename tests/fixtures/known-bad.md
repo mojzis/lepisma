@@ -28,3 +28,6 @@ The cache — a plain dict — holds the parsed files (one for each path); nothi
 # A report, not a gate
 
 The hook is an inventory, not a verdict. It lists findings rather than blocking the commit. The exit code isn't a judgment. It's a count.
+
+<!-- R10 -->
+The daemon speaks LSP to the type checker.

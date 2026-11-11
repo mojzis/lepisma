@@ -11,7 +11,7 @@ uv run lepisma check --format json docs/setup.md
 
 ### What each rule means
 
-<!-- lepisma: disable R2 R3 R4 R5 R6 R7 R8 R9 -->
+<!-- lepisma: disable R2 R3 R4 R5 R6 R7 R8 R9 R10 -->
 - **R1 long-sentence**: over {{long_sentence.max_words}} words, strong over {{long_sentence.strong_words}}.
   Split it into two or three sentences.
 - **R2 noun-stack**: {{noun_stack.min_nouns}} or more nouns modify each other
@@ -35,7 +35,13 @@ uv run lepisma check --format json docs/setup.md
   holds {{contrast_frame.min_count}} or more frames like "X, not Y" or "rather than", and more than
   {{contrast_frame.max_per_1000}} per 1,000 words. The message lists the lines. Say what each thing is.
   Keep a contrast only where the reader would assume the opposite.
-<!-- lepisma: enable R2 R3 R4 R5 R6 R7 R8 R9 -->
+- **R10 undefined-term**: an acronym is not spelled out near its first use. Write
+  the full name there, then the short form in parentheses: "Language Server
+  Protocol (LSP)". With `rare_terms` on, it also flags a rare word used
+  {{undefined_term.min_uses}} or more times and never defined. Define it at first use, or use a plainer word.
+  If every reader of this repo knows the term, a human can add it to `extra_known`
+  or `known_terms`.
+<!-- lepisma: enable R2 R3 R4 R5 R6 R7 R8 R9 R10 -->
 
 ### Remedy ladder (take the first rule that applies)
 
