@@ -4,6 +4,8 @@ Fast, soft feedback on Markdown docs that are hard to read. It targets the habit
 of text written by Claude. Warnings go back to Claude so it can rewrite the text.
 **Warnings never block a commit.**
 
+Part of **[aesop](https://mojzis.github.io/aesop/)**, a small menagerie of tools for agentic Python.
+
 The name: *Lepisma saccharina* is the silverfish, which eats paper and chews
 through books.
 
