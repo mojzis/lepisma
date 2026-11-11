@@ -9,7 +9,7 @@ using the CLI.
 - `markdown.py` turns Markdown into prose blocks and maps each character back to its
   line and column. It drops code, tables, front matter and HTML. Inline code becomes
   the `CODE` placeholder.
-- `rules.py` holds R1 to R7. Each is `(block, doc, cfg) -> Iterator[Finding]`.
+- `rules.py` holds R1 to R8. Each is `(block, doc, cfg) -> Iterator[Finding]`.
 - `engine.py` runs spaCy and the rules. Only it, `server.py` and `measure.py` import
   spaCy.
 - `client.py` is the commit hook client. **Stdlib only**; it never raises and always

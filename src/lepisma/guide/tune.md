@@ -49,6 +49,15 @@ strong_words_before = {{late_verb.strong_words_before}}
 
 [rules.tidy-summary]               # R7
 # openers = ["overall", "in summary", "this ensures", ...]
+
+[rules.interruption-load]          # R8
+# dashes, parentheses, semicolons and mid-sentence colons in one sentence
+warn_at = {{interruption_load.warn_at}}
+strong_at = {{interruption_load.strong_at}}
+# a dash or colon after this few words marks a label ("`name` - text")
+label_words = {{interruption_load.label_words}}
+# a parenthesis with fewer words is a gloss ("`-d` (docs)"), not an aside
+min_paren_words = {{interruption_load.min_paren_words}}
 ```
 
 Rules can be named by ID (`R2`) or name (`noun-stack`), here and in comments:

@@ -365,3 +365,69 @@ def test_closing_this_ensures_is_r7_not_r6(lint):
     found = rules(lint("The hook runs on commit. This ensures the docs stay clean."))
     assert "R7" in found
     assert "R6" not in found
+
+
+def r8(warnings):
+    return [(w.severity, w.message) for w in warnings if w.rule == "R8"]
+
+
+def test_interruption_load_warns_at_two_and_is_strong_at_three(lint):
+    two = "The cache \u2014 a plain dict \u2014 holds the parsed files."
+    three = "The cache \u2014 a plain dict \u2014 holds files; nothing else is kept."
+    assert r8(lint(two)) == [
+        (
+            "warning",
+            "2 interruptions in one sentence (2 dashes); "
+            "give each aside its own sentence.",
+        )
+    ]
+    ((severity, message),) = r8(lint(three))
+    assert severity == "strong"
+    assert "(2 dashes, 1 semicolon)" in message
+
+
+def test_interruption_load_allows_one_aside(lint):
+    assert not r8(lint("The cache (a plain dict) holds the parsed files."))
+    assert not r8(lint("The cache holds parsed files; nothing else is kept."))
+
+
+def test_interruption_load_skips_label_separators(lint):
+    # "`name` - description" and "**Label** - description" in list items.
+    assert not r8(lint("- `name` \u2014 the symbol to find (as it is written)\n"))
+    assert not r8(
+        lint(
+            "- **A loop of pure calls inside a test** \u2014 fixtures (functions "
+            "that set things up) often loop.\n"
+        )
+    )
+    assert not r8(lint("Note: the cache (a plain dict here) holds parsed files."))
+
+
+def test_interruption_load_skips_short_glosses(lint):
+    assert not r8(
+        lint("Add `-d` (docs), `-r` (references), `-t` (test refs) or `--all`.")
+    )
+
+
+def test_interruption_load_skips_a_semicolon_that_ends_a_list_item(lint):
+    assert not r8(
+        lint("- private names: used by convention, or called by the interpreter;\n")
+    )
+
+
+def test_interruption_load_skips_a_colon_that_introduces_code(lint):
+    assert not r8(lint("Run the build (it takes a minute or so) like this: `make`"))
+
+
+def test_interruption_load_thresholds_are_configurable(lint):
+    cfg = from_dict({"rules": {"interruption-load": {"warn_at": 3}}})
+    assert not r8(lint("The cache \u2014 a plain dict \u2014 holds parsed files.", cfg))
+
+
+def test_interruption_load_skips_marks_inside_quotes(lint):
+    assert not r8(
+        lint('It drops a verb that opens a line: "Purpose: Validates the grid" is one.')
+    )
+    assert not r8(
+        lint('That means a recipient ("gives guidance to Claude Code") or a gift (x).')
+    )
