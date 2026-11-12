@@ -1,6 +1,6 @@
 [project]
 name = "lepisma"
-version = "0.1.4"
+version = "0.1.5"
 description = "Soft, fast prose warnings for Claude-written Markdown docs"
 readme = "README.md"
 license = {text = "MIT"}
