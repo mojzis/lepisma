@@ -14,6 +14,8 @@ from typing import TYPE_CHECKING
 from lepisma.guide import TOPICS
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from lepisma.config import Config
     from lepisma.models import FileResult
 
@@ -49,12 +51,14 @@ def _collect(paths: list[str], cfg: Config, *, use_ignore: bool) -> list[Path]:
     return files
 
 
-def _lint_paths(paths: list[str], *, use_ignore: bool = True) -> list[FileResult]:
+def _lint_paths(
+    paths: list[str], *, use_ignore: bool = True, glossaries: Sequence[str] = ()
+) -> list[FileResult]:
     """Lint files and folders."""
     from lepisma.config import from_dict, load_raw  # noqa: PLC0415
     from lepisma.engine import lint_text  # noqa: PLC0415
 
-    cfg = from_dict(load_raw(Path.cwd()))
+    cfg = from_dict(load_raw(Path.cwd(), glossaries))
     files = _collect(paths, cfg, use_ignore=use_ignore)
     return [lint_text(str(f), f.read_text(encoding="utf-8"), cfg) for f in files]
 
@@ -63,7 +67,7 @@ def cmd_check(args: argparse.Namespace) -> int:
     """Lint files in-process (no server). Exit 1 on warnings only with --strict."""
     from lepisma.report import print_results  # noqa: PLC0415
 
-    results = _lint_paths(args.paths)
+    results = _lint_paths(args.paths, glossaries=args.glossary)
     print_results(results, args.format)
     has_warnings = any(r.warnings for r in results)
     return 1 if args.strict and has_warnings else 0
@@ -162,7 +166,9 @@ def cmd_hook(args: argparse.Namespace) -> int:
     """Pre-commit hook: lint staged docs via the server; never fails."""
     from lepisma.client import run_hook  # noqa: PLC0415
 
-    return run_hook(args.files, fmt=args.format, wait_s=args.wait)
+    return run_hook(
+        args.files, fmt=args.format, wait_s=args.wait, glossaries=args.glossary
+    )
 
 
 def cmd_serve(args: argparse.Namespace) -> int:
@@ -244,6 +250,16 @@ def cmd_guide(args: argparse.Namespace) -> int:
     return 0
 
 
+def _add_glossary_flag(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--glossary",
+        action="append",
+        default=[],
+        metavar="PATH",
+        help="glossary file for R10, layered after the config's; repeatable",
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Argument parser for all subcommands."""
     parser = argparse.ArgumentParser(
@@ -273,6 +289,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--strict", action="store_true", help="exit 1 when there are warnings"
     )
+    _add_glossary_flag(p)
     p.set_defaults(func=cmd_check)
 
     p = sub.add_parser("stats", help="warnings per 1,000 words; one group per path")
@@ -330,6 +347,7 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="SECONDS",
         help="start the server and wait for it instead of skipping",
     )
+    _add_glossary_flag(p)
     p.set_defaults(func=cmd_hook)
 
     p = sub.add_parser("serve", help="run the spaCy server in the foreground")

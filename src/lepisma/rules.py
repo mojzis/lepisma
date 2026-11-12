@@ -847,12 +847,18 @@ def _is_common(tok: Token) -> bool:
     return not forms.isdisjoint(common)
 
 
+_FILLER = r"(?:(?:of|the|and|for|to|in)\s+)?"
+
+
+def _initials(acronym: str) -> str:
+    """Pattern for words whose initials spell ``acronym``."""
+    parts = [rf"{re.escape(ch)}\w+" for ch in acronym]
+    return r"\b" + (r"[\s-]+" + _FILLER).join(parts)
+
+
 def _spelled_out(acronym: str, text: str) -> bool:
     """True when ``text`` holds words whose initials spell ``acronym``."""
-    filler = r"(?:(?:of|the|and|for|to|in)\s+)?"
-    parts = [rf"{re.escape(ch)}\w+" for ch in acronym]
-    pattern = r"\b" + (r"[\s-]+" + filler).join(parts)
-    return re.search(pattern, text, re.IGNORECASE) is not None
+    return re.search(_initials(acronym), text, re.IGNORECASE) is not None
 
 
 def _is_defined(term: str, text: str) -> bool:
@@ -878,9 +884,13 @@ def _first_uses(
     Acronyms map to (block index, offset); rare words to (block, offset, uses).
     """
     rule = cfg.undefined_term
-    known = set(rule.known_acronyms)
+    # A glossary entry named like an acronym counts as known; any other
+    # single word counts as a known term.
+    glossed = {name.rstrip("s") for name in rule.glossary if _ACRONYM.fullmatch(name)}
+    known = set(rule.known_acronyms) | glossed
+    listed = [*rule.known_terms, *(n for n in rule.glossary if " " not in n.strip())]
     # A word the document also writes as code is a name: `pytest`, `stderr`.
-    known_terms = {w.lower() for w in rule.known_terms} | {
+    known_terms = {w.strip().lower() for w in listed} | {
         word.lower()
         for block, _ in parsed
         for span in _CODE_SPAN.findall(" ".join(block.raw))
@@ -924,10 +934,53 @@ def unexpanded_acronyms(parsed: Parsed, cfg: Config) -> list[tuple[str, int, int
     ]
 
 
+def _same_name(given: str, expansion: str) -> bool:
+    """Compare two full names, ignoring case, hyphens, whitespace and a plural."""
+    a, b = (re.sub(r"[\s-]+", "", text).lower() for text in (given, expansion))
+    return a == b or a.removesuffix("s") == b.removesuffix("s")
+
+
+def other_glosses(parsed: Parsed, cfg: Config) -> Iterator[tuple[int, int, str, str]]:
+    """(block index, offset, acronym, full name) where a document glosses a
+    glossary acronym in parentheses with a name other than its expansion.
+
+    Only "Full Name (ADR)" and "ADR (Full Name)" count, and only when the
+    name's initials spell the acronym: "ADR (see below)" is not a gloss.
+    """
+    for name, entry in cfg.undefined_term.glossary.items():
+        expansion = entry.get("expansion")
+        if not expansion or not _ACRONYM.fullmatch(name):
+            continue
+        short = rf"\b{re.escape(name.rstrip('s'))}s?"
+        words = rf"(?i:{_initials(name.rstrip('s'))})"
+        gloss = re.compile(
+            rf"(?P<a>{words})\s*\(\s*{short}\s*\)|{short}\s*\(\s*(?P<b>{words})\s*\)"
+        )
+        for idx, (block, _) in enumerate(parsed):
+            for match in gloss.finditer(block.text):
+                given = match["a"] or match["b"]
+                if block.in_code(match.start(), match.end()):
+                    continue
+                if not _same_name(given, expansion):
+                    yield idx, match.start(), name, given
+
+
 def undefined_term(parsed: Parsed, cfg: Config) -> Iterator[tuple[int, Finding]]:
-    """R10: an acronym never spelled out, or a rare word used often and never
-    defined."""
+    """R10: an acronym never spelled out, a gloss that differs from the
+    glossary, or a rare word used often and never defined."""
     rule = cfg.undefined_term
+    for idx, offset, name, given in other_glosses(parsed, cfg):
+        yield (
+            idx,
+            Finding(
+                rule="R10",
+                offset=offset,
+                message=(
+                    f'"{name}" is glossed here as "{given}", but the glossary '
+                    f'says "{rule.glossary[name]["expansion"]}"; use one name.'
+                ),
+            ),
+        )
     for name, idx, offset in unexpanded_acronyms(parsed, cfg):
         yield (
             idx,

@@ -6,7 +6,9 @@ This module stays light (stdlib only) because the commit hook client imports it.
 from __future__ import annotations
 
 import fnmatch
+import sys
 import tomllib
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -120,7 +122,12 @@ DEFAULT_FIGURATIVE = [
 
 
 class ConfigError(ValueError):
-    """Raised for an invalid ``lepisma.toml``."""
+    """Raised for an invalid ``lepisma.toml`` or glossary."""
+
+
+# term -> its fields; both fields are optional, but an entry needs one.
+Glossary = dict[str, dict[str, str]]
+GLOSSARY_FIELDS = ("expansion", "definition")
 
 
 @dataclass(slots=True)
@@ -240,6 +247,12 @@ class UndefinedTerm:
     min_uses: int = 3
     # Rare words that need no definition in this repo (tool names, jargon).
     known_terms: list[str] = field(default_factory=list)
+    # Merged glossary entries: term -> {"expansion": ..., "definition": ...}.
+    # `load_raw` builds it from the glossary files; `from_dict` takes it inline.
+    glossary: Glossary = field(default_factory=dict)
+    # Globs for files read without the glossary at hand, such as README.md.
+    # The glossary is not applied to them, so they must spell terms out.
+    spell_out_in: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -296,10 +309,18 @@ class Config:
 
     def is_ignored(self, path: str) -> bool:
         """Return True when ``path`` matches an ``ignore`` glob or a wrong suffix."""
-        posix = Path(path).as_posix()
-        if Path(posix).suffix.lower() not in self.extensions:
+        if Path(path).suffix.lower() not in self.extensions:
             return True
-        return any(fnmatch.fnmatch(posix, pattern) for pattern in self.ignore)
+        return _matches(path, self.ignore)
+
+    def spells_out(self, path: str) -> bool:
+        """Return True when ``path`` matches a ``spell_out_in`` glob of R10."""
+        return _matches(path, self.undefined_term.spell_out_in)
+
+
+def _matches(path: str, globs: list[str]) -> bool:
+    posix = Path(path).as_posix()
+    return any(fnmatch.fnmatch(posix, pattern) for pattern in globs)
 
 
 # rule id -> (name, attribute on Config)
@@ -395,6 +416,10 @@ def from_dict(data: dict[str, Any]) -> Config:
         if attr == "undefined_term" and "extra_known" in settings:
             extra = _str_list(settings.pop("extra_known"), "extra_known")
             target.known_acronyms.extend(w.upper() for w in extra)
+        if attr == "undefined_term" and "glossary" in settings:
+            target.glossary = glossary_entries(
+                settings.pop("glossary"), f"[rules.{key}] glossary"
+            )
         _apply(target, settings, f"rules.{key}")
     if data:
         msg = f"unknown top-level setting(s): {', '.join(sorted(data))}"
@@ -411,10 +436,120 @@ def find_config(start: Path) -> Path | None:
     return None
 
 
-def load_raw(start: Path) -> dict[str, Any]:
-    """Return the parsed TOML for the nearest config, or ``{}`` when none exists."""
+def _warn(msg: str) -> None:
+    print(f"lepisma: {msg}", file=sys.stderr)  # noqa: T201
+
+
+def glossary_entries(raw: object, source: str) -> Glossary:
+    """Validate glossary entries: one table per term, with string fields."""
+    if not isinstance(raw, dict):
+        msg = f"{source}: must be a table of entries (load_raw reads the file list)"
+        raise ConfigError(msg)
+    entries: Glossary = {}
+    for name, entry in raw.items():
+        where = f"{source}: [{name}]"
+        if not isinstance(entry, dict):
+            msg = f"{where} must be a table"
+            raise ConfigError(msg)
+        unknown = sorted(set(entry) - set(GLOSSARY_FIELDS))
+        if unknown:
+            msg = f"{where} has unknown field(s): {', '.join(unknown)}"
+            raise ConfigError(msg)
+        if not entry:
+            msg = f"{where} needs an expansion or a definition"
+            raise ConfigError(msg)
+        for key, value in entry.items():
+            if not isinstance(value, str):
+                msg = f"{where} {key} must be a string"
+                raise ConfigError(msg)
+        entries[str(name)] = dict(entry)
+    return entries
+
+
+def read_glossary(path: Path) -> Glossary:
+    """Parse and validate one glossary file."""
+    try:
+        with path.open("rb") as fh:
+            raw = tomllib.load(fh)
+    except OSError as exc:
+        msg = f"{path}: cannot read glossary ({exc.strerror or exc})"
+        raise ConfigError(msg) from exc
+    except ValueError as exc:  # TOMLDecodeError, or bytes that are not UTF-8
+        msg = f"{path}: invalid TOML ({exc})"
+        raise ConfigError(msg) from exc
+    return glossary_entries(raw, str(path))
+
+
+def merge_glossaries(layers: Iterable[tuple[str, Glossary]]) -> Glossary:
+    """Layer glossaries in order. A later entry's fields win; each expansion
+    that changes is reported on stderr."""
+    merged: Glossary = {}
+    origin: dict[str, str] = {}
+    for source, entries in layers:
+        for name, entry in entries.items():
+            old = merged.get(name, {})
+            was, now = old.get("expansion"), entry.get("expansion")
+            if was is not None and now is not None and was != now:
+                _warn(
+                    f'glossary conflict for "{name}": "{now}" from {source} '
+                    f'replaces "{was}" from {origin[name]}'
+                )
+            if now is not None:
+                origin[name] = source
+            merged[name] = {**old, **entry}
+    return merged
+
+
+def _inline_glossaries(
+    raw: dict[str, Any], base: Path, extra: Sequence[str | Path]
+) -> dict[str, Any]:
+    """Replace R10's ``glossary`` file list by the merged entries.
+
+    Paths in the config are relative to ``base``, the config's directory;
+    ``extra`` paths (the ``--glossary`` flag) are relative to the current
+    directory and come last. A bad file is reported on stderr and left out.
+    """
+    rules = raw.get("rules", {})
+    if not isinstance(rules, dict):
+        return raw  # from_dict reports it
+    layers: list[tuple[str, Glossary]] = []
+    files: list[Path] = []
+    target: dict[str, Any] | None = None
+    for key, section in rules.items():
+        if rule_id(key) != "R10" or not isinstance(section, dict):
+            continue
+        if "glossary" not in section:
+            continue
+        target = section
+        given = section.pop("glossary")
+        if isinstance(given, dict):  # entries written straight into the config
+            layers.append((CONFIG_NAME, glossary_entries(given, CONFIG_NAME)))
+        else:
+            name = f"[rules.{key}] glossary"
+            files.extend(base / p for p in _str_list(given, name))
+    files.extend(Path(p) for p in extra)
+    if target is None and not files:
+        return raw
+    for path in files:
+        try:
+            layers.append((str(path), read_glossary(path)))
+        except ConfigError as exc:
+            _warn(f"glossary skipped: {exc}")
+    if target is None:
+        target = raw.setdefault("rules", {}).setdefault(RULES["R10"][0], {})
+    target["glossary"] = merge_glossaries(layers)
+    return raw
+
+
+def load_raw(start: Path, glossaries: Sequence[str | Path] = ()) -> dict[str, Any]:
+    """Return the parsed TOML for the nearest config, or ``{}`` when none exists.
+
+    Glossary files named by the config and then by ``glossaries`` are read here
+    and inlined, so the result is all a server needs to lint.
+    """
     path = find_config(start)
-    if path is None:
-        return {}
-    with path.open("rb") as fh:
-        return tomllib.load(fh)
+    raw: dict[str, Any] = {}
+    if path is not None:
+        with path.open("rb") as fh:
+            raw = tomllib.load(fh)
+    return _inline_glossaries(raw, path.parent if path else start, glossaries)

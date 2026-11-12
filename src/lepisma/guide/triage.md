@@ -41,6 +41,8 @@ uv run lepisma check --format json docs/setup.md
   {{undefined_term.min_uses}} or more times and never defined. Define it at first use, or use a plainer word.
   If every reader of this repo knows the term, a human can add it to `extra_known`
   or `known_terms`.
+  The message "is glossed here as ..., but the glossary says ..." means the full
+  name in parentheses differs from the glossary. Use the glossary's name.
 - **R11 emphasis**: one warning per document and family, at the first hit. Sincerity
   words ("exactly", "genuinely") claim what the text should show: cut each one, or
   state the fact that backs it. Figurative terms ("seam", "verdict") stand in for
@@ -61,6 +63,23 @@ uv run lepisma check --format json docs/setup.md
    why in your reply or commit message.
 5. A rule is wrong across this repo: tell a human. Changing thresholds is a policy
    call; see `uv run lepisma guide tune`.
+
+### Glossary or `extra_known`
+
+This choice is for a human; suggest it and do not edit the config yourself.
+
+- The term is this project's or this organisation's own, and a new reader
+  would have to look it up. Add it to a glossary file with its `expansion` or
+  `definition`. Examples are "Architecture Decision Record (ADR)" and a team's
+  name for a service. The glossary records the meaning, and several repos can
+  share one file.
+- Every technical reader knows the term and nobody would look it up: add it to
+  `extra_known`, or to `known_terms` for a rare word. Examples are "LSP" in an
+  editor plugin and "stderr".
+- The file matches `spell_out_in`, such as `README.md`: neither applies to the
+  glossary's terms. Spell the term out at its first use.
+
+`uv run lepisma guide tune` shows the glossary file format.
 
 ### Done looks like
 

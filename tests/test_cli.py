@@ -48,3 +48,31 @@ def test_install_hook_prepends_and_is_idempotent(tmp_path, monkeypatch):
     first, ours, rest = hook.read_text().splitlines()
     assert (first, rest) == ("#!/bin/sh", "exec other-hook")
     assert HOOK_MARKER in ours
+
+
+def test_check_glossary_flag_layers_after_the_config(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "lepisma.toml").write_text('[rules.R10]\nglossary = ["org.toml"]\n')
+    (tmp_path / "org.toml").write_text('[ADR]\nexpansion = "Any Decision Record"\n')
+    (tmp_path / "repo.toml").write_text(
+        '[ADR]\nexpansion = "Architecture Decision Record"\n'
+        '[LSP]\nexpansion = "Language Server Protocol"\n'
+    )
+    (tmp_path / "a.md").write_text(
+        "Each ADR names one choice. The daemon speaks LSP.\n"
+    )
+    main(["check", "a.md"])
+    assert capsys.readouterr().out.startswith('a.md:1:46 R10 "LSP" is never spelled')
+    main(["check", "--glossary", "repo.toml", "a.md"])
+    out = capsys.readouterr()
+    assert out.out == ""
+    assert out.err.startswith('lepisma: glossary conflict for "ADR"')
+
+
+def test_hook_passes_glossary_flags_to_the_client(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(
+        "lepisma.client.run_hook", lambda files, **kw: seen.update(kw) or 0
+    )
+    assert main(["hook", "--glossary", "a.toml", "--glossary", "b.toml"]) == 0
+    assert seen["glossaries"] == ["a.toml", "b.toml"]

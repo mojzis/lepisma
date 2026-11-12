@@ -92,11 +92,11 @@ it runs even when the rest of the hook ends in `exec`.
 | Command | What it does |
 | --- | --- |
 | `lepisma guide [setup\|triage\|tune]` | Print instructions for an agent. With no topic it picks one from the current directory. |
-| `lepisma check PATH...` | Lint files or folders in-process, no server. `--format json`, `--strict` exits 1 on warnings. |
+| `lepisma check PATH...` | Lint files or folders in-process, no server. `--format json`, `--strict` exits 1 on warnings. `--glossary PATH` adds a glossary file for R10. |
 | `lepisma stats PATH...` | Warnings per 1,000 words per file and rule, one table per path. |
 | `lepisma measure PATH...` | Readability stats for whole docs. Writes Parquet tables and `report.md` to `--out` (default `stats/`). Needs the `measure` extra. |
 | `lepisma chunks [PATH...]` | One Parquet row per paragraph, list or blockquote, with stable IDs and hashes. Writes `--out` (default `chunks.parquet`). Needs the `measure` extra. See [Exporting chunks](#exporting-chunks). |
-| `lepisma hook [FILE...]` | What the git hook runs. Lints the given files, or asks git for the staged docs. `--wait 10` waits for the server instead of skipping. |
+| `lepisma hook [FILE...]` | What the git hook runs. Lints the given files, or asks git for the staged docs. `--wait 10` waits for the server instead of skipping. `--glossary PATH` works as in `check`. |
 | `lepisma serve` | Run the server in the foreground. `--idle-timeout 0` keeps it up. |
 | `lepisma stop` | Stop the server, for example after an upgrade. |
 
@@ -211,6 +211,37 @@ Details:
   also writes as code, and `known_terms` are skipped. The check is off by default.
   In the toolbox docs two thirds of its hits were jargon that the readers know,
   such as "workspace", "stderr" and "docstring".
+
+  A **glossary** defines a term once for a project, or once for a whole
+  organisation. It is a TOML file with one table per term. Both fields are
+  optional strings, and an entry needs at least one of them:
+
+  ```toml
+  [ADR]
+  expansion = "Architecture Decision Record"
+  definition = "Short doc recording one architectural decision and why."
+
+  [worktree]
+  definition = "A second checkout of the same git repository."
+  ```
+
+  Name the files in `glossary`, or pass `--glossary PATH` to `check` and `hook`.
+  The flag can be repeated. R10 treats an entry named like an acronym as a
+  `known_acronyms` entry, plurals included. It treats any other single word as
+  a `known_terms` entry. An entry of several words is valid and has no effect
+  yet. See [Glossary files](#glossary-files) for layering and errors.
+
+  R10 also warns when a document glosses a glossary acronym in parentheses
+  with another name. With the entry above, both "Architectural Decision Report
+  (ADR)" and "ADR (Architectural Decision Report)" get a warning that names the
+  two versions. The comparison ignores case, hyphens, whitespace and a plural
+  "s". A gloss is a run of words whose initials spell the acronym. R10
+  therefore passes "ADR (see below)".
+
+  `spell_out_in` lists globs for files that people read without the glossary at
+  hand, such as `README.md`. It matches paths the way `ignore` does. In those
+  files the glossary is not applied, so the first use must still be spelled
+  out. `extra_known` and `known_terms` still apply there.
 
   The word list is `data/common_words.txt.gz`, about 170 kB. It holds 64,000
   common English words with their inflections, taken from
@@ -384,6 +415,32 @@ To compare repos, run `lepisma chunks` in each and read the files together with
 
 Put one `lepisma.toml` at the repo root. The [sample in this repo](lepisma.toml)
 lists every key with its default.
+
+### Glossary files
+
+`glossary` in `[rules.undefined-term]` is a list of paths to glossary files. A
+path is relative to the folder of the `lepisma.toml` that names it:
+
+```toml
+[rules.undefined-term]
+glossary = ["../org-docs/glossary.toml", "docs/glossary.toml"]
+spell_out_in = ["README.md"]
+```
+
+- Files are layered in order, so put the shared file first and the repo's own
+  file last. Files given with `--glossary` come after the ones in the config.
+  The flag's paths are relative to the current directory.
+- When two files give one term different expansions, the later file wins.
+  lepisma prints one line per conflict to stderr. A later entry replaces only
+  the fields it sets. Identical entries print nothing.
+- A file is left out, with one line on stderr, when it is missing, is not valid
+  TOML, or has a bad entry. A bad entry has no field, a field that is not a
+  string, or a field other than `expansion` and `definition`. Linting goes on
+  with the other files, and the hook still exits 0.
+- lepisma never looks for a glossary on its own. With no key and no flag, R10
+  works as it did before.
+- The hook client reads the files and sends the merged entries to the server
+  inside the config. An edit to a glossary therefore changes the cached result.
 
 To turn rules off inside a document:
 

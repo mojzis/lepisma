@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from lepisma.config import RULES, Config, from_dict
+from lepisma.engine import lint_text
 from lepisma.rules import verb_form
 
 
@@ -562,6 +563,64 @@ def test_undefined_term_needs_min_uses_and_ignores_common_words(lint):
     assert not r10(lint("The worktree starts first. The worktree then exits.", RARE))
     common = "The cache starts. The cache fills. The cache is flushed and cached."
     assert not r10(lint(common, RARE))
+
+
+def glossary_cfg(**extra):
+    glossary = {
+        "ADR": {"expansion": "Architecture Decision Record"},
+        "worktree": {"definition": "A second checkout of the same repository."},
+        "merge request": {"definition": "A proposed change."},
+    }
+    return from_dict({"rules": {"R10": {"glossary": glossary, **extra}}})
+
+
+def test_undefined_term_skips_glossary_acronyms_and_their_plurals(lint):
+    text = "Each ADR names one choice. Old ADRs stay. The daemon speaks LSP."
+    assert r10(lint(text)) == ["ADR", "LSP"]
+    assert r10(lint(text, glossary_cfg())) == ["LSP"]
+
+
+def test_undefined_term_skips_glossary_terms_under_rare_terms(lint):
+    text = "The worktree starts. Each worktree reads the config. A worktree then exits."
+    assert r10(lint(text, RARE)) == ["worktree"]
+    assert not r10(lint(text, glossary_cfg(rare_terms=True)))
+
+
+def test_undefined_term_flags_a_gloss_that_differs_from_the_glossary(lint):
+    cfg = glossary_cfg()
+    for text in (
+        "We wrote an Architectural Decision Report (ADR) for it.",
+        "We wrote an ADR (Architectural Decision Report) for it.",
+    ):
+        (w,) = [w for w in lint(text, cfg) if w.rule == "R10"]
+        assert w.message == (
+            '"ADR" is glossed here as "Architectural Decision Report", but the '
+            'glossary says "Architecture Decision Record"; use one name.'
+        )
+    assert lint("We wrote an ADR (Any Dumb Reason) for it.", cfg)[0].col == 13
+
+
+def test_undefined_term_accepts_a_gloss_that_matches_the_glossary(lint):
+    cfg = glossary_cfg()
+    for text in (
+        "We wrote an Architecture Decision Record (ADR) for it.",
+        "We wrote an ADR (architecture-decision record) for it.",
+        "We keep Architecture Decision Records (ADRs) here.",
+        # Not a gloss: the words do not spell the acronym.
+        "We wrote an ADR (see the next section) for it.",
+    ):
+        assert not r10(lint(text, cfg)), text
+
+
+def test_undefined_term_spell_out_in_turns_the_glossary_off(nlp):
+    cfg = glossary_cfg(spell_out_in=["README.md", "docs/public/*"])
+
+    def flagged(path):
+        return r10(lint_text(path, "Each ADR names one choice.", cfg, nlp).warnings)
+
+    assert flagged("docs/adr.md") == []
+    assert flagged("README.md") == ["ADR"]
+    assert flagged("docs/public/intro.md") == ["ADR"]
 
 
 def r11(warnings):

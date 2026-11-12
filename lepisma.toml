@@ -65,6 +65,11 @@ ignore = ["corpus/**", "CHANGELOG.md"]
 # rare_terms = false       # also flag rare words used often and never defined
 # min_uses = 3             # uses in one document before a rare word counts
 # known_terms = ["worktree"] # rare words that need no definition in this repo
+# Glossary files, layered in order; paths are relative to this file. Each holds
+# one table per term: [ADR] with expansion = "..." and/or definition = "...".
+# `--glossary PATH` on check and hook adds more files after these.
+# glossary = ["../org-docs/glossary.toml", "docs/glossary.toml"]
+# spell_out_in = ["README.md"] # globs; the glossary is not applied to these files
 
 [rules.emphasis]           # R11
 # sincerity = ["genuinely", "exactly", "deliberately", "quietly", "silently"]
