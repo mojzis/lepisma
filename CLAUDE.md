@@ -9,11 +9,15 @@ using the CLI.
 - `markdown.py` turns Markdown into prose blocks and maps each character back to its
   line and column. It drops code, tables, front matter and HTML. Inline code becomes
   the `CODE` placeholder.
-- `rules.py` holds R1 to R11. R1 to R8 are `(block, doc, cfg) -> Iterator[Finding]`.
-  R9 to R11 judge a whole document: `(parsed, cfg) -> Iterator[(block index, Finding)]`,
-  listed in `DOC_RULE_FUNCS`.
+- `rules.py` holds R1 to R15. Block rules are `(block, doc, cfg) -> Iterator[Finding]`.
+  R9 to R11, R14 and R15 judge a whole document:
+  `(parsed, cfg) -> Iterator[(block index, Finding)]`, listed in `DOC_RULE_FUNCS`.
+  R12 to R15 are off by default.
 - `engine.py` runs spaCy and the rules. Only it, `server.py` and `measure.py` import
-  spaCy.
+  spaCy. It also compiles and runs the `[custom.<name>]` rules with spaCy's Matcher.
+- `config.py` checks only the form of a custom rule, since it cannot load spaCy.
+  `PROFILES` there holds the named rule sets (`profile = "ste"`); they are plain
+  config dicts that a repo's own config is layered on.
 - `client.py` is the commit hook client. **Stdlib only**; it never raises and always
   exits 0. Keep spaCy and FastAPI out of it, and out of `config.py`, `models.py` and
   `report.py`, which it imports.

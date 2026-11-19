@@ -34,3 +34,19 @@ The daemon speaks LSP to the type checker.
 
 <!-- R11 -->
 The seam between the two modules is narrow. Each seam has one owner. The verdict lands in the report.
+
+<!-- R12 -->
+The server reads the file. It prints a line. It stops. It starts again. It waits
+for a request. It reads the request. It writes the reply.
+
+<!-- R13 -->
+After installing the package, restart the server.
+
+<!-- R14 -->
+- Stop the server.
+- Remove the old key.
+- Start the server.
+
+<!-- R15 -->
+1. Open the cover. Warning: the fan is hot.
+2. Remove the disk.

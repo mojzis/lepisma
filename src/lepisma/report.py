@@ -10,6 +10,7 @@ from lepisma.config import RULES
 from lepisma.models import FileResult
 
 NAME_W = 44  # width of the file column in stats output
+CUSTOM = "cust"  # stats column that sums every custom rule
 
 
 def per_1000(count: int, words: int) -> float:
@@ -57,7 +58,7 @@ def print_results(
 def print_stats(groups: dict[str, list[FileResult]]) -> None:
     """Print warnings per 1,000 words per file and per group, broken down by rule."""
     out = sys.stdout
-    rule_ids = list(RULES)
+    rule_ids = [*RULES, CUSTOM]
     header = f"{'file':{NAME_W}} {'words':>6} {'per1k':>6} " + " ".join(
         f"{r:>5}" for r in rule_ids
     )
@@ -66,7 +67,7 @@ def print_stats(groups: dict[str, list[FileResult]]) -> None:
         total: Counter[str] = Counter()
         words = 0
         for r in results:
-            counts = Counter(w.rule for w in r.warnings)
+            counts = Counter(w.rule if w.rule in RULES else CUSTOM for w in r.warnings)
             total.update(counts)
             words += r.words
             cells = " ".join(f"{per_1000(counts[x], r.words):5.1f}" for x in rule_ids)

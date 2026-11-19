@@ -135,6 +135,24 @@ def is_word(tok: Token) -> bool:
     return not (tok.is_punct or tok.is_space or tok.pos_ in {"SYM", "X", "SPACE"})
 
 
+def is_instruction(sent: Span) -> bool:
+    """True for a sentence written as a command: "Run the tests.", "Do not
+    edit the file.", "If the build fails, run it again."
+
+    The tagger reads some commands as noun phrases ("Test line number
+    accuracy"), so a sentence with no verb that opens with a verb's base form
+    counts too.
+    """
+    root = sent.root
+    if root.tag_ == "VB":
+        deps = {c.dep_ for c in root.children}
+        return not deps & {"nsubj", "nsubjpass", "expl"}
+    if any(t.pos_ in {"VERB", "AUX"} for t in sent):
+        return False
+    first = next((t for t in sent if is_word(t)), None)
+    return first is not None and first.lower_ in verbs_of(sent.doc)
+
+
 def long_sentence(block: Block, doc: Doc, cfg: Config) -> Iterator[Finding]:
     """R1: sentences with too many words."""
     rule = cfg.long_sentence
@@ -142,7 +160,10 @@ def long_sentence(block: Block, doc: Doc, cfg: Config) -> Iterator[Finding]:
         return
     for sent in doc.sents:
         words = sum(1 for tok in sent if is_word(tok))
-        if words <= rule.max_words:
+        limit, kind = rule.max_words, "Sentence"
+        if rule.instruction_max_words and is_instruction(sent):
+            limit, kind = rule.instruction_max_words, "Instruction"
+        if words <= limit:
             continue
         strong = words > rule.strong_words
         advice = "split it" if strong else "consider splitting"
@@ -150,7 +171,7 @@ def long_sentence(block: Block, doc: Doc, cfg: Config) -> Iterator[Finding]:
         yield Finding(
             rule="R1",
             offset=first.idx,
-            message=f"Sentence has {words} words; {advice}.",
+            message=f"{kind} has {words} words; {advice}.",
             severity="strong" if strong else "warning",
         )
 
@@ -1095,6 +1116,123 @@ def emphasis(parsed: Parsed, cfg: Config) -> Iterator[tuple[int, Finding]]:
         )
 
 
+def long_paragraph(block: Block, doc: Doc, cfg: Config) -> Iterator[Finding]:
+    """R12: a paragraph with too many sentences."""
+    rule = cfg.long_paragraph
+    if block.kind != "paragraph":
+        return
+    sents = [s for s in doc.sents if any(is_word(t) for t in s)]
+    if len(sents) <= rule.max_sentences:
+        return
+    strong = len(sents) > rule.strong_sentences
+    yield Finding(
+        rule="R12",
+        offset=sents[0].start_char,
+        message=(
+            f"Paragraph has {len(sents)} sentences; split it after "
+            f"{rule.max_sentences} at most."
+        ),
+        severity="strong" if strong else "warning",
+    )
+
+
+def _in_verb(tok: Token) -> bool:
+    """True for an -ing form with "be" in front ("is running"), or one joined
+    to such a form ("is running and logging")."""
+    if any(c.dep_ in {"aux", "auxpass"} and c.lemma_ == "be" for c in tok.children):
+        return True
+    return tok.dep_ == "conj" and tok.head.tag_ == "VBG" and _in_verb(tok.head)
+
+
+def ing_word(block: Block, doc: Doc, cfg: Config) -> Iterator[Finding]:
+    """R13: an -ing form that is not part of a verb ("after installing it")."""
+    if block.kind == "heading":
+        return
+    allow = {w.lower() for w in cfg.ing_word.allow}
+    for tok in doc:
+        if tok.tag_ != "VBG" or tok.lower_ in allow or _in_verb(tok):
+            continue
+        if block.in_code(tok.idx, tok.idx + len(tok)):
+            continue
+        yield Finding(
+            rule="R13",
+            offset=tok.idx,
+            message=(
+                f'"{tok.text}" is an -ing word outside a verb; use a clause '
+                "with a subject and a plain verb."
+            ),
+        )
+
+
+def step_list(parsed: Parsed, cfg: Config) -> Iterator[tuple[int, Finding]]:
+    """R14: a run of bullets that are all commands, which reads as steps."""
+    rule = cfg.step_list
+    run: list[int] = []
+    for idx in range(len(parsed) + 1):
+        block, doc = parsed[idx] if idx < len(parsed) else (None, None)
+        if (
+            block is not None
+            and doc is not None
+            and block.kind == "list"
+            and not block.ordered
+            and is_instruction(next(iter(doc.sents)))
+        ):
+            run.append(idx)
+            continue
+        if len(run) >= rule.min_items:
+            first = parsed[run[0]][1]
+            yield (
+                run[0],
+                Finding(
+                    rule="R14",
+                    offset=next(iter(first.sents)).start_char,
+                    message=(
+                        f"{len(run)} bullets in a row are commands; number them "
+                        "if the reader does them in order."
+                    ),
+                ),
+            )
+        run = []
+
+
+def _warning_word(text: str, words: list[str]) -> str | None:
+    """The warning word that opens ``text`` ("Warning: ...", "[!CAUTION]")."""
+    m = re.match(r"\W*(\w+)", text)
+    return m[1] if m and m[1].lower() in {w.lower() for w in words} else None
+
+
+def late_warning(parsed: Parsed, cfg: Config) -> Iterator[tuple[int, Finding]]:
+    """R15: a warning that comes after the step it applies to.
+
+    Two cases: a warning sentence inside a numbered step, after the
+    instruction; and a warning block right after the last numbered step.
+    """
+    words = cfg.late_warning.words
+
+    def finding(offset: int, word: str, where: str) -> Finding:
+        return Finding(
+            rule="R15",
+            offset=offset,
+            message=f'"{word}" comes {where}; put a warning before its step.',
+        )
+
+    for idx, (block, doc) in enumerate(parsed):
+        prev = parsed[idx - 1][0] if idx else None
+        nxt = parsed[idx + 1][0] if idx + 1 < len(parsed) else None
+        if block.kind == "list" and block.ordered:
+            for sent in list(doc.sents)[1:]:
+                if word := _warning_word(sent.text, words):
+                    yield idx, finding(sent.start_char, word, "after the instruction")
+        elif (
+            prev is not None
+            and prev.kind == "list"
+            and prev.ordered
+            and not (nxt is not None and nxt.kind == "list" and nxt.ordered)
+            and (word := _warning_word(block.text, words))
+        ):
+            yield idx, finding(0, word, "after the last step")
+
+
 RuleFn = Callable[["Block", "Doc", "Config"], Iterator[Finding]]
 
 RULE_FUNCS: dict[str, RuleFn] = {
@@ -1106,6 +1244,8 @@ RULE_FUNCS: dict[str, RuleFn] = {
     "R6": vague_this,
     "R7": tidy_summary,
     "R8": interruption_load,
+    "R12": long_paragraph,
+    "R13": ing_word,
 }
 
 # Rules that judge a whole document. Each yields (block index, finding).
@@ -1115,4 +1255,6 @@ DOC_RULE_FUNCS: dict[str, DocRuleFn] = {
     "R9": contrast_frame,
     "R10": undefined_term,
     "R11": emphasis,
+    "R14": step_list,
+    "R15": late_warning,
 }

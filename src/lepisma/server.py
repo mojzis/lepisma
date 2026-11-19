@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 from lepisma import build_id
 from lepisma.config import ConfigError, from_dict
-from lepisma.engine import lint_text, load_nlp
+from lepisma.engine import check_custom, lint_text, load_nlp
 from lepisma.models import FileResult
 
 # Computed once at startup: the code this process actually runs.
@@ -75,12 +75,13 @@ def create_app(on_shutdown: threading.Event | None = None) -> FastAPI:
     @app.post("/lint")
     def lint(req: LintRequest) -> dict[str, Any]:
         app.state.last_request = time.monotonic()
+        nlp = load_nlp()
         try:
             cfg = from_dict(req.config)
+            check_custom(nlp, cfg)
         except ConfigError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         cfg_key = json.dumps(req.config, sort_keys=True, default=str)
-        nlp = load_nlp()
         results = []
         for f in req.files:
             key = hashlib.sha256(f"{cfg_key}\0{f.path}\0{f.text}".encode()).hexdigest()

@@ -306,9 +306,18 @@ def test_known_bad_file_covers_every_rule():
     assert sorted(rid for rid, _ in _known_bad_samples()) == sorted(RULES)
 
 
+OPT_IN = ["long-paragraph", "ing-word", "step-list", "late-warning"]
+
+
 @pytest.mark.parametrize(("rid", "sample"), _known_bad_samples())
 def test_each_rule_fires_on_its_known_bad_sample(lint, rid, sample):
-    assert rid in rules(lint(sample))
+    cfg = from_dict({"rules": {name: {"enabled": True} for name in OPT_IN}})
+    assert rid in rules(lint(sample, cfg))
+
+
+def test_opt_in_rules_are_off_by_default(lint):
+    found = {rid for _, sample in _known_bad_samples() for rid in rules(lint(sample))}
+    assert found.isdisjoint({"R12", "R13", "R14", "R15"})
 
 
 def test_late_verb_counts_words_before_the_verb_group(lint):
@@ -693,3 +702,97 @@ def test_emphasis_lists_are_configurable(lint):
 def test_emphasis_is_strong_at_twice_the_allowance(lint):
     (w,) = r11(lint(FIGURES + "\nA load-bearing seam.\n"))
     assert w.severity == "strong"
+
+
+def _only(name, **settings):
+    return from_dict({"rules": {name: {"enabled": True, **settings}}})
+
+
+LONG_COMMAND = (
+    "Open the file and remove the old key from the long list of keys that the "
+    "server reads when it starts each morning."
+)
+
+
+def test_an_instruction_takes_its_own_word_limit(lint):
+    cfg = from_dict({"rules": {"R1": {"instruction_max_words": 20}}})
+    assert "R1" not in rules(lint(LONG_COMMAND))
+    (w,) = [w for w in lint(LONG_COMMAND, cfg) if w.rule == "R1"]
+    assert w.message == "Instruction has 23 words; consider splitting."
+
+
+def test_a_description_keeps_the_sentence_limit(lint):
+    cfg = from_dict({"rules": {"R1": {"instruction_max_words": 20}}})
+    described = LONG_COMMAND.replace("Open the file and remove", "The tool removes")
+    assert "R1" not in rules(lint(described, cfg))
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("Run the tests.", True),
+        ("Do not run the tests twice.", True),
+        ("If the build fails, run the tests again.", True),
+        ("Test line number accuracy.", True),  # the tagger reads "Test" as a noun
+        ("The server starts on port 8737.", False),
+        ("Tests run in parallel.", False),
+        ("Update notes are in the changelog.", False),
+    ],
+)
+def test_is_instruction(nlp, source, expected):
+    from lepisma.engine import parse_blocks  # noqa: PLC0415
+    from lepisma.markdown import parse  # noqa: PLC0415
+    from lepisma.rules import is_instruction  # noqa: PLC0415
+
+    (doc,) = parse_blocks(nlp, parse(source))
+    assert is_instruction(next(iter(doc.sents))) is expected
+
+
+def test_long_paragraph_counts_sentences(lint):
+    six = "It runs. It stops. It waits. It reads. It writes. It ends."
+    cfg = _only("long-paragraph")
+    assert lint(six, cfg) == []
+    (w,) = lint(six + " It starts.", cfg)
+    assert (w.rule, w.message) == (
+        "R12",
+        "Paragraph has 7 sentences; split it after 6 at most.",
+    )
+    assert lint("- " + six + " It starts.", cfg) == []  # a list item is not a paragraph
+
+
+def test_ing_word_allows_a_verb_and_code(lint):
+    cfg = _only("ing-word")
+    assert lint("The server is running and logging.", cfg) == []
+    assert lint("Set the `running` flag.", cfg) == []
+    (w,) = lint("Running the tests takes time.", cfg)
+    assert w.message.startswith('"Running" is an -ing word outside a verb')
+    allowed = _only("ing-word", allow=["running"])
+    assert lint("Running the tests takes time.", allowed) == []
+
+
+def test_step_list_needs_a_run_of_commands(lint):
+    cfg = _only("step-list")
+    steps = "- Stop the server.\n- Remove the key.\n- Start the server.\n"
+    (w,) = lint(steps, cfg)
+    assert (w.rule, w.line) == ("R14", 1)
+    assert w.message.startswith("3 bullets in a row are commands")
+    assert lint(steps.replace("- ", "1. "), cfg) == []
+    assert lint("- Stop the server.\n- Remove the key.\n", cfg) == []
+    facts = "- The server is fast.\n- The key is old.\n- The disk is full.\n"
+    assert lint(facts, cfg) == []
+
+
+def test_late_warning_inside_a_step_and_after_the_last_step(lint):
+    cfg = _only("late-warning")
+    (inside,) = lint("1. Open the cover. Warning: the fan is hot.\n", cfg)
+    assert (inside.rule, inside.col) == ("R15", 20)
+    assert "after the instruction" in inside.message
+    (after,) = lint("1. Open the cover.\n\nCaution: the fan is hot.\n", cfg)
+    assert "after the last step" in after.message
+
+
+def test_a_warning_before_its_step_is_fine(lint):
+    cfg = _only("late-warning")
+    source = "1. Close the valve.\n\nWarning: the fan is hot.\n\n2. Open the cover.\n"
+    assert lint(source, cfg) == []
+    assert lint("Warning: the fan is hot.\n\n1. Open the cover.\n", cfg) == []

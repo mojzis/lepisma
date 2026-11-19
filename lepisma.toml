@@ -1,6 +1,10 @@
 # lepisma settings for this repo. Every key is optional; defaults shown in
 # README.md. Copy this file to the root of any repo that uses lepisma.
 
+# Start from a named rule set; the keys below are layered on top. "ste" follows
+# Simplified Technical English. See README.md, "Profiles".
+# profile = "ste"
+
 # Paths (globs, relative to the repo root) the hook never lints.
 ignore = ["corpus/**", "CHANGELOG.md"]
 
@@ -19,6 +23,7 @@ ignore = ["corpus/**", "CHANGELOG.md"]
 # enabled = true
 # max_words = 25
 # strong_words = 35
+# instruction_max_words = 0   # limit for a command; 0 means max_words applies
 
 [rules.noun-stack]         # R2
 # min_nouns = 4
@@ -76,3 +81,31 @@ ignore = ["corpus/**", "CHANGELOG.md"]
 # figurative = ["seam", "verdict", "load-bearing", "shape", "rung", "floor", ...]
 # min_count = 3            # per family; fewer hits than this never warn
 # max_per_1000 = 3.0       # per family; strong at twice this
+
+# R12 to R15 are off by default.
+[rules.long-paragraph]     # R12
+# enabled = false
+# max_sentences = 6
+# strong_sentences = 9
+
+[rules.ing-word]           # R13: an -ing form that is not part of a verb
+# enabled = false
+# allow = ["following"]
+
+[rules.step-list]          # R14: bullets that are all commands
+# enabled = false
+# min_items = 3
+
+[rules.late-warning]       # R15: a warning after the step it applies to
+# enabled = false
+# words = ["warning", "caution", "danger"]
+
+# Rules of this repo's own: a message, plus spaCy Matcher patterns or words.
+# [custom.no-shall]
+# message = 'Write "must" in place of "{match}".'
+# words = ["shall"]
+#
+# [custom.passive-voice]
+# message = 'Passive voice ("{match} {head}"); say who or what does it.'
+# pattern = [{ DEP = "auxpass" }]
+# allow = ["is called"]

@@ -129,6 +129,15 @@ The server log is in `~/.cache/lepisma/server.log`.
 | R10 | `undefined-term` | an acronym is not spelled out near its first use | never |
 | R11 | `emphasis` | a document holds 3 or more sincerity words, or 3 or more figurative terms, and more than 3 per 1,000 words | more than 6 per 1,000 words |
 
+Four more rules are off until a config or a profile turns them on:
+
+| ID | Name | Warns when | Strong when |
+| --- | --- | --- | --- |
+| R12 | `long-paragraph` | a paragraph has more than 6 sentences | more than 9 |
+| R13 | `ing-word` | an -ing form is not part of a verb ("after installing it") | never |
+| R14 | `step-list` | 3 or more bullets in a row are commands | never |
+| R15 | `late-warning` | a warning comes after the step it applies to | never |
+
 Details:
 
 - **All rules** skip code blocks, inline code, tables, front matter, HTML and link
@@ -263,6 +272,18 @@ Details:
 
   About half of the R8 hits in the toolbox docs are in sentences of 25 words or
   fewer, which R1 never sees.
+- **R1** can hold a command to a lower limit. Set `instruction_max_words`, and a
+  sentence like "Run the tests." or "If the build fails, run it again." uses
+  that limit. A command is a sentence whose main verb is a bare verb with no
+  subject.
+- **R13** reads the tagger's verb forms, so a noun like "logging" in "use
+  logging" may pass. An -ing form after "is" or "are" is part of a verb.
+- **R14** treats a list item as a command by its first sentence. Numbered items
+  never warn.
+- **R15** finds two cases. One is a sentence that opens with "Warning",
+  "Caution" or "Danger" inside a numbered step, after the instruction. The
+  other is a block that opens with such a word right after the last numbered
+  step. A warning between two steps is taken to belong to the next one.
 
 ## Measuring whole docs
 
@@ -416,6 +437,71 @@ To compare repos, run `lepisma chunks` in each and read the files together with
 Put one `lepisma.toml` at the repo root. The [sample in this repo](lepisma.toml)
 lists every key with its default.
 
+### Custom rules
+
+A repo can add rules of its own under `[custom.<name>]`. A rule has a `message`
+and a `pattern`, a `words` list, or both:
+
+```toml
+[custom.no-shall]
+message = 'Write "must" in place of "{match}".'
+words = ["shall"]
+
+[custom.passive-voice]
+message = 'Passive voice ("{match} {head}"); say who or what does it.'
+pattern = [{ DEP = "auxpass" }]
+```
+
+- `pattern` is a token pattern for the
+  [spaCy Matcher](https://spacy.io/usage/rule-based-matching): one table per
+  token. A list of such lists gives several patterns. A pattern that spaCy
+  rejects is a config error.
+- `words` match by form or lemma, so "shall" finds "Shall". A phrase
+  matches word by word.
+- `allow` lists matches to skip. An entry is the matched text, its lemmas, or
+  the lemma of the word the match hangs from and the text, like "set up".
+- The message can hold `{match}`, `{lemma}` and `{head}`. `{head}` is the word
+  the match hangs from: "deleted" for the "is" of "is deleted".
+- `severity` is "warning" or "strong". `enabled = false` turns the rule off.
+- Each hit warns. Custom rules skip headings and code. The rule's name stands
+  where the ID stands in the output and in `disable` comments.
+
+### Profiles
+
+`profile = "ste"` at the top of `lepisma.toml` starts from a set of rules in
+place of the defaults. Keys in the file then change that set. The `ste` profile
+follows Simplified Technical English, the style of maintenance manuals:
+
+| Style rule | Checked by |
+| --- | --- |
+| An instruction has 20 words at most, a description 25 | R1 with `instruction_max_words = 20` |
+| 3 nouns in a row at most | R2 |
+| A paragraph has 6 sentences at most | R12 |
+| An -ing word only as part of a verb | R13 |
+| A numbered list for steps | R14 |
+| A warning before its step | R15 |
+| No contractions | `contraction` |
+| Active voice | `passive-voice` |
+| One verb, not a phrasal verb | `phrasal-verb` |
+| Numbers as digits | `number-word` |
+| Simple tenses only | `perfect-tense`, `progressive-tense` |
+
+The last six are custom rules that the profile defines. Change one by its name:
+
+```toml
+profile = "ste"
+
+[custom.phrasal-verb]
+allow = ["set up", "log in", "look up"]
+
+[custom.passive-voice]
+enabled = false
+```
+
+The profile leaves three of the style's rules unchecked. They are one idea in
+each sentence, the use of articles, and one meaning for each word. Add word swaps
+such as "kick off" to R3 with `suggestions`.
+
 ### Glossary files
 
 `glossary` in `[rules.undefined-term]` is a list of paths to glossary files. A
@@ -522,9 +608,9 @@ either synthetic set. The next rules target that gap.
 2. ~~Four starter rules~~
 3. ~~Commit hook in warn-only mode~~
 4. Feedback loop: rewrite with Claude, then ask people whether the result reads better.
-5. Expand: ~~late main verb~~, ~~vague "this"~~, ~~summary filler~~. Next: passive
-   voice per paragraph, deep nesting, too many parentheses, undefined acronyms,
-   repeated openings and Flesch score.
+5. Expand: ~~late main verb~~, ~~vague "this"~~, ~~summary filler~~, ~~custom
+   rules and profiles~~. Next: thresholds per folder, a shared config that
+   several repos extend, deep nesting, repeated openings and Flesch score.
    Add an optional large language model (LLM) judge in CI.
 6. Port the useful rules to Rust (harper-core and Weir) if speed or distribution
    becomes a problem.

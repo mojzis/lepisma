@@ -6,6 +6,7 @@ Every key is optional. Unknown keys and wrong types are errors.
 ### Keys and defaults
 
 ```toml
+# profile = "ste"                  # start from a named rule set; see Profiles
 ignore = []                        # globs; filter docs found by walking a folder
 extensions = [".md", ".markdown"]
 
@@ -22,6 +23,8 @@ shingle_k = {{chunks.shingle_k}}
 enabled = true
 max_words = {{long_sentence.max_words}}
 strong_words = {{long_sentence.strong_words}}
+# limit for a command ("Run the tests."); 0 means max_words applies
+instruction_max_words = {{long_sentence.instruction_max_words}}
 
 [rules.noun-stack]                 # R2
 min_nouns = {{noun_stack.min_nouns}}
@@ -85,11 +88,81 @@ min_uses = {{undefined_term.min_uses}}                       # uses before a rar
 # figurative = ["seam", "verdict", "load-bearing", "shape", "rung", "floor", ...]
 min_count = {{emphasis.min_count}}             # fewer hits than this never warn
 max_per_1000 = {{emphasis.max_per_1000}}        # strong at twice this
+
+[rules.long-paragraph]             # R12, off by default
+enabled = {{long_paragraph.enabled}}
+max_sentences = {{long_paragraph.max_sentences}}
+strong_sentences = {{long_paragraph.strong_sentences}}
+
+[rules.ing-word]                   # R13, off by default
+enabled = {{ing_word.enabled}}
+# allow = ["following"]            # -ing words that are fine anywhere
+
+[rules.step-list]                  # R14, off by default, judged per document
+enabled = {{step_list.enabled}}
+min_items = {{step_list.min_items}}                      # bullets in a row that are all commands
+
+[rules.late-warning]               # R15, off by default, judged per document
+enabled = {{late_warning.enabled}}
+# words = ["warning", "caution", "danger"]
 ```
 
 Rules can be named by ID (`R2`) or name (`noun-stack`), here and in comments:
 `<!-- lepisma: disable R2 -->`, `enable R2`, `disable-next R1 R3`, or
 `disable` for all rules.
+
+A custom rule's name works in the same comments: `disable-next passive-voice`.
+
+### Custom rules
+
+A `[custom.<name>]` table adds a rule. The name is lowercase and no built-in
+rule has it. Each hit warns; there is no budget per document.
+
+```toml
+[custom.no-shall]
+message = 'Write "must" in place of "{match}".'
+words = ["shall"]                  # form or lemma; a phrase matches word by word
+
+[custom.passive-voice]
+message = 'Passive voice ("{match} {head}"); say who or what does it.'
+pattern = [{ DEP = "auxpass" }]    # spaCy Matcher token pattern
+# pattern = [[{ LOWER = "a" }], [{ LOWER = "b" }]]   # several patterns
+# allow = ["is called"]            # matches to skip
+# severity = "strong"              # default "warning"
+# enabled = false
+```
+
+- `pattern` takes the token attributes of the spaCy Matcher, such as `LOWER`,
+  `LEMMA`, `POS`, `TAG`, `DEP` and `OP`. See
+  https://spacy.io/usage/rule-based-matching. A pattern that spaCy rejects is a
+  config error: `check` stops, and the hook skips.
+- The message can hold `{match}` (the matched text), `{lemma}` and `{head}`.
+  `{head}` is the word the match hangs from: "deleted" for the "is" of "is
+  deleted", "take" for the "out" of "take it out".
+- An `allow` entry names a match by its text, by its lemmas, or by the head's
+  lemma and the text ("set up").
+- Custom rules skip headings and code. `lepisma stats` sums them in the `cust`
+  column.
+
+### Profiles
+
+`profile = "ste"` starts from a named rule set. The rest of the file is layered
+on top: a table merges key by key, and any other value replaces the profile's.
+
+`ste` follows Simplified Technical English. It sets
+`instruction_max_words = 20` on R1 and turns on R12 to R15. It also defines six
+custom rules: `contraction`, `passive-voice`, `phrasal-verb`, `number-word`,
+`perfect-tense` and `progressive-tense`. Change one by its name:
+
+```
+profile = "ste"
+
+[custom.phrasal-verb]
+allow = ["set up", "log in", "look up"]   # replaces the profile's list
+
+[custom.passive-voice]
+enabled = false
+```
 
 ### Glossary
 
