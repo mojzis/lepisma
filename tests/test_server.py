@@ -31,6 +31,14 @@ def test_bad_config_is_422():
     assert resp.status_code == 422
 
 
+def test_bad_custom_pattern_is_422():
+    rule = {"message": "x", "pattern": [{"NO_SUCH_ATTR": "x"}]}
+    client = TestClient(create_app())
+    resp = client.post("/lint", json={"files": [], "config": {"custom": {"bad": rule}}})
+    assert resp.status_code == 422
+    assert "[custom.bad] bad pattern" in resp.json()["detail"]
+
+
 def test_shutdown_sets_event():
     stop = threading.Event()
     TestClient(create_app(stop)).post(

@@ -6,6 +6,7 @@ This module stays light (stdlib only) because the commit hook client imports it.
 from __future__ import annotations
 
 import fnmatch
+import re
 import sys
 import tomllib
 from collections.abc import Iterable, Sequence
@@ -137,6 +138,9 @@ class LongSentence:
     enabled: bool = True
     max_words: int = 25
     strong_words: int = 35
+    # Limit for a sentence written as a command ("Run the tests."); 0 means
+    # `max_words` applies to it too.
+    instruction_max_words: int = 0
 
 
 @dataclass(slots=True)
@@ -268,6 +272,64 @@ class Emphasis:
     max_per_1000: float = 3.0
 
 
+# Words that open a warning in a procedure.
+DEFAULT_WARNING_WORDS = ["warning", "caution", "danger"]
+
+
+@dataclass(slots=True)
+class LongParagraph:
+    """R12 settings. Off by default."""
+
+    enabled: bool = False
+    max_sentences: int = 6
+    strong_sentences: int = 9
+
+
+@dataclass(slots=True)
+class IngWord:
+    """R13 settings. Off by default."""
+
+    enabled: bool = False
+    # -ing words that are fine anywhere ("following", "according").
+    allow: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class StepList:
+    """R14 settings. Off by default."""
+
+    enabled: bool = False
+    # A run of this many bullets that are all commands should be numbered.
+    min_items: int = 3
+
+
+@dataclass(slots=True)
+class LateWarning:
+    """R15 settings. Off by default."""
+
+    enabled: bool = False
+    words: list[str] = field(default_factory=lambda: list(DEFAULT_WARNING_WORDS))
+
+
+@dataclass(slots=True)
+class CustomRule:
+    """One ``[custom.<name>]`` rule: spaCy Matcher patterns, a word list or both.
+
+    The engine compiles and matches it; this module only checks its form.
+    """
+
+    name: str
+    message: str
+    # Each pattern is a list of token specs, as spaCy's Matcher takes them.
+    patterns: list[list[dict[str, Any]]] = field(default_factory=list)
+    # Words match by form or lemma; phrases match word by word, ignoring case.
+    words: list[str] = field(default_factory=list)
+    # Matches that are fine: the matched text, its lemmas, or "head match".
+    allow: list[str] = field(default_factory=list)
+    severity: str = "warning"
+    enabled: bool = True
+
+
 @dataclass(slots=True)
 class Server:
     """Local spaCy server settings."""
@@ -304,6 +366,11 @@ class Config:
     contrast_frame: ContrastFrame = field(default_factory=ContrastFrame)
     undefined_term: UndefinedTerm = field(default_factory=UndefinedTerm)
     emphasis: Emphasis = field(default_factory=Emphasis)
+    long_paragraph: LongParagraph = field(default_factory=LongParagraph)
+    ing_word: IngWord = field(default_factory=IngWord)
+    step_list: StepList = field(default_factory=StepList)
+    late_warning: LateWarning = field(default_factory=LateWarning)
+    custom: list[CustomRule] = field(default_factory=list)
     server: Server = field(default_factory=Server)
     chunks: Chunks = field(default_factory=Chunks)
 
@@ -336,6 +403,75 @@ RULES: dict[str, tuple[str, str]] = {
     "R9": ("contrast-frame", "contrast_frame"),
     "R10": ("undefined-term", "undefined_term"),
     "R11": ("emphasis", "emphasis"),
+    "R12": ("long-paragraph", "long_paragraph"),
+    "R13": ("ing-word", "ing_word"),
+    "R14": ("step-list", "step_list"),
+    "R15": ("late-warning", "late_warning"),
+}
+
+# Marks a block where a bare `disable` comment turned every rule off, custom
+# rules included.
+ALL_DISABLED = "*"
+
+
+_BE = {"LEMMA": "be", "POS": "AUX"}
+_ADVERBS = {"POS": {"IN": ["ADV", "PART"]}, "OP": "*"}
+
+# Named starting points; a config with `profile = "..."` is layered on top.
+# "ste" follows Simplified Technical English, the style of maintenance manuals.
+PROFILES: dict[str, dict[str, Any]] = {
+    "ste": {
+        "rules": {
+            "long-sentence": {"max_words": 25, "instruction_max_words": 20},
+            "noun-stack": {"min_nouns": 4, "strong_nouns": 5},
+            "long-paragraph": {"enabled": True, "max_sentences": 6},
+            "ing-word": {"enabled": True},
+            "step-list": {"enabled": True},
+            "late-warning": {"enabled": True},
+        },
+        "custom": {
+            "contraction": {
+                "message": 'Contraction "{match}"; write the words in full.',
+                "pattern": [
+                    [{"LOWER": {"IN": ["n't", "n\u2019t"]}}],
+                    [
+                        {
+                            "LOWER": {"REGEX": "^['\u2019](s|re|ll|ve|d|m)$"},
+                            "POS": {"IN": ["AUX", "VERB"]},
+                        }
+                    ],
+                ],
+            },
+            "passive-voice": {
+                "message": 'Passive voice ("{match} {head}"); say who or what does it.',
+                "pattern": [{"DEP": "auxpass"}],
+            },
+            "phrasal-verb": {
+                "message": 'Phrasal verb "{head} {match}"; use one verb.',
+                "pattern": [{"DEP": "prt"}],
+                "allow": ["set up", "log in", "log out", "back up", "shut down"],
+            },
+            "number-word": {
+                "message": 'Number "{match}" is spelled out; write it as digits.',
+                "pattern": [
+                    {
+                        "LIKE_NUM": True,
+                        "IS_ALPHA": True,
+                        "POS": "NUM",
+                        "LOWER": {"NOT_IN": ["one"]},
+                    }
+                ],
+            },
+            "perfect-tense": {
+                "message": 'Perfect tense ("{match}"); use the simple past or present.',
+                "pattern": [{"LEMMA": "have", "POS": "AUX"}, _ADVERBS, {"TAG": "VBN"}],
+            },
+            "progressive-tense": {
+                "message": 'Progressive tense ("{match}"); use a simple tense.',
+                "pattern": [_BE, _ADVERBS, {"TAG": "VBG"}],
+            },
+        },
+    },
 }
 
 
@@ -384,10 +520,103 @@ def _apply_habit_words(cfg: HabitWords, values: dict[str, Any]) -> None:
     _apply(cfg, values, "rules.habit-word")
 
 
+_CUSTOM_NAME = re.compile(r"[a-z][a-z0-9-]*")
+_CUSTOM_KEYS = {"message", "pattern", "words", "allow", "severity", "enabled"}
+
+
+def _token_patterns(raw: object, where: str) -> list[list[dict[str, Any]]]:
+    """One pattern (a list of token tables) or a list of such patterns."""
+    if isinstance(raw, list) and raw and all(isinstance(x, dict) for x in raw):
+        raw = [raw]
+    ok = (
+        isinstance(raw, list)
+        and raw
+        and all(
+            isinstance(p, list) and p and all(isinstance(t, dict) for t in p)
+            for p in raw
+        )
+    )
+    if not ok:
+        msg = f"{where} pattern must be a list of token tables, or a list of those"
+        raise ConfigError(msg)
+    return [[dict(tok) for tok in p] for p in raw]
+
+
+def _custom_rule(name: str, raw: object) -> CustomRule:
+    where = f"[custom.{name}]"
+    if not _CUSTOM_NAME.fullmatch(name) or rule_id(name) is not None:
+        msg = f"{where}: a custom rule needs a lowercase name no built-in rule has"
+        raise ConfigError(msg)
+    if not isinstance(raw, dict):
+        msg = f"{where} must be a table"
+        raise ConfigError(msg)
+    unknown = sorted(set(raw) - _CUSTOM_KEYS)
+    if unknown:
+        msg = f"unknown setting {where} {', '.join(unknown)}"
+        raise ConfigError(msg)
+    message = raw.get("message")
+    if not isinstance(message, str) or not message.strip():
+        msg = f"{where} needs a message"
+        raise ConfigError(msg)
+    rule = CustomRule(name=name, message=message)
+    if "pattern" in raw:
+        rule.patterns = _token_patterns(raw["pattern"], where)
+    for key in ("words", "allow"):
+        if key in raw:
+            given = _str_list(raw[key], f"{where} {key}")
+            setattr(rule, key, [w.lower() for w in given])
+    if not rule.patterns and not rule.words:
+        msg = f"{where} needs a pattern or words"
+        raise ConfigError(msg)
+    rule.severity = raw.get("severity", "warning")
+    if rule.severity not in ("warning", "strong"):
+        msg = f'{where} severity must be "warning" or "strong"'
+        raise ConfigError(msg)
+    rule.enabled = raw.get("enabled", True)
+    if not isinstance(rule.enabled, bool):
+        msg = f"{where} enabled must be bool"
+        raise ConfigError(msg)
+    return rule
+
+
+def _layer(base: dict[str, Any], over: dict[str, Any]) -> dict[str, Any]:
+    """``over`` on top of ``base``: tables merge key by key, other values replace."""
+    merged = dict(base)
+    for key, value in over.items():
+        old = merged.get(key)
+        both = isinstance(old, dict) and isinstance(value, dict)
+        merged[key] = _layer(old, value) if both else value
+    return merged
+
+
+def _with_profile(data: dict[str, Any]) -> dict[str, Any]:
+    """Put the config on top of the profile it names, if it names one."""
+    data = dict(data)
+    name = data.pop("profile", None)
+    if name is None:
+        return data
+    if not isinstance(name, str) or name not in PROFILES:
+        msg = f"unknown profile {name!r}; known: {', '.join(sorted(PROFILES))}"
+        raise ConfigError(msg)
+    # Rules may be named by id or by name; use names so the two layers meet.
+    rules = data.get("rules")
+    if isinstance(rules, dict):
+        data["rules"] = {
+            (RULES[rid][0] if (rid := rule_id(key)) else key): value
+            for key, value in rules.items()
+        }
+    return _layer(PROFILES[name], data)
+
+
 def from_dict(data: dict[str, Any]) -> Config:
     """Build a Config from a parsed TOML dict, validating every key."""
     cfg = Config()
-    data = dict(data)
+    data = _with_profile(data)
+    custom = data.pop("custom", {})
+    if not isinstance(custom, dict):
+        msg = "[custom] must hold one table per rule"
+        raise ConfigError(msg)
+    cfg.custom = [_custom_rule(str(name), raw) for name, raw in custom.items()]
     if "ignore" in data:
         cfg.ignore = _str_list(data.pop("ignore"), "ignore")
     if "extensions" in data:

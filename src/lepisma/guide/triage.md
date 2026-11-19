@@ -49,7 +49,20 @@ uv run lepisma check --format json docs/setup.md
   a plain name: name the thing, or define the term once with "A seam is ...".
   A literal use is fine, and the count allows a few. Do not swap in another figure
   of speech.
+- **R12 long-paragraph**: over {{long_paragraph.max_sentences}} sentences in one paragraph. Split it where the
+  topic turns.
+- **R13 ing-word**: an -ing form outside a verb ("after installing it"). Use a
+  clause with a subject: "after you install it".
+- **R14 step-list**: {{step_list.min_items}} or more bullets in a row are commands. Number them if
+  the reader does them in order. Leave bullets where the order does not matter.
+- **R15 late-warning**: a warning comes after the step it applies to. Move it to
+  the line before that step.
+- **A name in place of an ID**, such as `passive-voice`: a custom rule from this
+  repo's `lepisma.toml` or from its profile. The message says what to change.
 <!-- lepisma: enable R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 -->
+
+R1 says "Instruction has ..." when the sentence is a command and the repo sets a
+lower limit for commands. R12 to R15 are off unless the config turns them on.
 
 ### Remedy ladder (take the first rule that applies)
 

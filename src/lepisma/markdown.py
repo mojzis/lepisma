@@ -12,12 +12,12 @@ import unicodedata
 from dataclasses import dataclass, field
 from typing import Literal
 
-from lepisma.config import RULES, rule_id
+from lepisma.config import ALL_DISABLED, RULES, rule_id
 
 BlockKind = Literal["paragraph", "list", "heading", "quote"]
 
 PLACEHOLDER = "CODE"
-ALL_RULES = frozenset(RULES)
+ALL_RULES = frozenset(RULES) | {ALL_DISABLED}
 
 _FENCE = re.compile(r"^\s{0,3}(`{3,}|~{3,})")
 _HEADING = re.compile(r"^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$")
@@ -89,6 +89,7 @@ class Block:
     kind: BlockKind
     text: str = ""
     level: int = 0  # heading level 1-6; 0 for other blocks
+    ordered: bool = False  # a list item with a number ("1.") for its marker
     # origins[i] is the (line, col) in the source of text[i]; both 1-based.
     origins: list[tuple[int, int]] = field(default_factory=list)
     code_spans: list[tuple[int, int]] = field(default_factory=list)
@@ -231,7 +232,8 @@ class _Disabler:
         names = [n for n in re.split(r"[\s,]+", arg.strip()) if n]
         if not names:
             return set(ALL_RULES)
-        return {rid for n in names if (rid := rule_id(n))}
+        # A name no built-in rule has may be a custom rule; keep it as written.
+        return {rule_id(n) or n.lower() for n in names}
 
     def feed(self, line: str) -> bool:
         """Apply any directive on ``line``; True if the line held one."""
@@ -367,6 +369,7 @@ def parse(source: str) -> list[Block]:  # noqa: PLR0912, PLR0915 - one scanner l
 
         if m := _LIST.match(line):
             current = blk = start("list")
+            blk.ordered = m.group(2)[0].isdigit()
             blk.add_line(line[m.end() :], lineno, m.end())
             continue
 
