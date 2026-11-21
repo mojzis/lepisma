@@ -148,3 +148,11 @@ published minutes ago.
 - ty-find's index goes stale after the hook's `ruff format` rewrites a file. The tell is
   `tyf refs <sym>` listing only the definition, or gerenuk reporting `selected` with an
   empty list. `uv run tyf daemon restart` fixes it.
+
+## Release notes
+
+A change a user would notice adds one file to `release-notes/` in the same PR
+(`YYYY-MM-DD-short-slug.md`, frontmatter `kind: added|changed|fixed|removed`, one or two
+plain sentences). Run `uvx relnotes@latest guide` before writing one: it has the wording rules.
+Dependency bumps, CI, refactors and tests get no note. `uvx relnotes@latest check` validates them.
+The release workflow turns them into the GitHub release, and the aesop site shows them.
