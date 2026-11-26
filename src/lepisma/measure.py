@@ -145,16 +145,16 @@ class Measurer:
                 "heading_contrast_frames": pl.Int64,
             },
         )
-        sec_keys = ["path", "section"]
+        sec_keys = {"path": pl.String, "section": pl.Int64}
         section_df = heads.join(
-            self._aggregate(sentences, sec_keys), on=sec_keys, how="inner"
-        ).join(_frame(sec_td, sec_keys), on=sec_keys, how="left")
+            self._aggregate(sentences, list(sec_keys)), on=list(sec_keys), how="inner"
+        ).join(_frame(sec_td, sec_keys), on=list(sec_keys), how="left")
         in_headings = heads.group_by("path").agg(
             pl.col("heading_contrast_frames").sum()
         )
         file_df = (
             self._aggregate(sentences, ["path"])
-            .join(_frame(file_td, ["path"]), on="path", how="left")
+            .join(_frame(file_td, {"path": pl.String}), on="path", how="left")
             .join(in_headings, on="path", how="left")
         )
         return Measurement(
@@ -360,10 +360,12 @@ def _acronyms(blocks: list[tuple[Block, Doc]]) -> dict[str, Any]:
     return {"acronyms_unexpanded": len(names), "acronym_list": " ".join(names)}
 
 
-def _frame(rows: list[dict[str, Any]], keys: list[str]) -> pl.DataFrame:
+def _frame(rows: list[dict[str, Any]], keys: dict[str, Any]) -> pl.DataFrame:
+    """Rows as a frame. With no rows, an empty frame whose join keys keep
+    their real types, so a batch without prose still joins."""
     if rows:
         return pl.DataFrame(rows)
-    return pl.DataFrame(schema=dict.fromkeys(keys, pl.String))
+    return pl.DataFrame(schema=keys)
 
 
 def _finish(df: pl.DataFrame) -> pl.DataFrame:

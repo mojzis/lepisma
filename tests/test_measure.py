@@ -104,3 +104,21 @@ def test_cli_writes_outputs(tmp_path, monkeypatch, capsys):
 def test_cli_no_docs(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     assert main(["measure", "."]) == 1
+
+
+FENCE_ONLY = "# Flow\n\n```mermaid\nflowchart LR\n  A --> B\n```\n"
+
+
+@pytest.mark.parametrize("text", ["", "# Title\n", FENCE_ONLY])
+def test_batch_without_prose_measures_empty(nlp, text):
+    m = Measurer(nlp=nlp).measure({"x.md": text})
+    assert m.sentences.is_empty()
+    assert m.sections.is_empty()
+    assert m.files.is_empty()
+
+
+def test_doc_without_prose_is_left_out_of_a_mixed_batch(nlp):
+    docs = {"a.md": FENCE_ONLY, "b.md": "# Doc\n\nThis is a sentence of prose.\n"}
+    m = Measurer(nlp=nlp).measure(docs)
+    assert m.files["path"].to_list() == ["b.md"]
+    assert m.sections["path"].to_list() == ["b.md"]
